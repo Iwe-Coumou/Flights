@@ -73,7 +73,7 @@ def plot_FAA(df_airports: pd.DataFrame,FAA_codes: list, home_base_faa: str = "JF
 def main():
     df_airports = pd.read_csv(r"data/airports.csv")
 
-     # Example with domestic & international airports
+    # Example with domestic & international airports
     airports_world = ["BSF", "BAF", "ANP", "TZR"]
     airports_us = ["BAF", "ANP"]
     home_base = "TUS"
