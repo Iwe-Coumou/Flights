@@ -1,6 +1,58 @@
 import plotly.graph_objects as go
 import pandas as pd
 
+#df_airports = pd.read_csv("airports.csv")
+
+#Shows figure of all airports (including na)
+fig = pd.scatter_geo(df_airports, 
+                     lat="lat", 
+                     lon="lon", 
+                     hover_name="name",  
+                     projection="natural earth",
+                     color="alt",
+                     title="World Map of Airports")
+fig.show()
+
+#Shows figure of airports inside US (na values excluded)
+df_us = df_airports[df_airports["tzone"].notna() & df_airports["tzone"].str.startswith("America")]
+fig_us = pd.scatter_geo(df_us, 
+                             lat="lat", 
+                             lon="lon", 
+                             hover_name="name", 
+                             projection="albers usa",
+                             color="alt",
+                             title="Airports Inside the US")
+fig_us.show()
+
+#Shows figure of airports outside US (na values excluded)
+df_outside_us = df_airports[df_airports["tzone"].notna() & (df_airports["tzone"].str.startswith("America")==False)]
+fig_outside_us = pd.scatter_geo(df_outside_us, 
+                             lat="lat", 
+                             lon="lon", 
+                             hover_name="name", 
+                             color="alt",
+                             projection="natural earth",
+                             title="Airports Outside the US")
+fig_outside_us.show()
+
+#This is an extra figure showing the airports inside/outside US in one figure
+df_us = df_us.copy()
+df_us["Location"] = "Inside US"
+df_outside_us = df_outside_us.copy()
+df_outside_us["Location"] = "Outside US"
+
+df_difference = pd.concat([df_us, df_outside_us])
+
+fig_difference = pd.scatter_geo(df_difference, 
+                     lat="lat", 
+                     lon="lon", 
+                     hover_name="name", 
+                     color="Location", 
+                     projection="natural earth", 
+                     title="Airports Inside and Outside the US",
+                     color_discrete_map={"Inside US": "purple", "Outside US": "blue"})
+fig_difference.show()
+
 def plot_FAA(df_airports: pd.DataFrame,FAA_codes: list, home_base_faa: str = "JFK") -> None:
     fig = go.Figure()
     
