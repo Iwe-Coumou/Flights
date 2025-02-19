@@ -26,6 +26,12 @@ An in-depth paragraph about your project and overview of use.
 code blocks for commands
 ```
 
+##Notes
+
+- Missing airports: SJU, STT, BQN, PSE
+- No fligths to Budapest (TZR)
+- Some airports appear in the sea because the islands they're on are not shown on the map
+
 ## Help
 
 Any advise for common problems or issues.
