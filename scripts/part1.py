@@ -132,6 +132,23 @@ def plot_FAA(df_airports: pd.DataFrame, FAA_codes: list, home_base_faa: str = "J
 
     fig.show()
 
+def plot_time_zones(df):
+    
+    
+    df["tz"] = df["tz"].astype(str)
+
+    fig = px.scatter_geo(
+        df,
+        lat="lat",
+        lon="lon",
+        color="tz",
+        projection="natural earth",
+        title="Distribution of Airports Across Time Zones",
+        hover_name="tz",
+        category_orders={"tz": sorted(df["tz"].unique())},
+    )
+
+    fig.show()
 
 
 def main():
@@ -141,6 +158,7 @@ def main():
     map_of_US_airports(df_airports)
     map_of_outside_US_airports(df_airports)
     map_of_inside_vs_outside_US(df_airports)
+    plot_time_zones(df_airports)
 
     # Example with domestic & international airports
     airports_world = ["BSF", "BAF", "ANP", "TZR"]
