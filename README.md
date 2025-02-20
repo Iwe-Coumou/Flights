@@ -29,6 +29,10 @@ code blocks for commands
 ##Notes
 
 - Missing airports: SJU, STT, BQN, PSE
+    * SJU: 18.4333333 -66
+    * STT: 18.3333333 -64.96666666666667
+    * BQN: 18.495 -67.12944444444443
+    * PSE: 18.0083333 -66.56305555555555
 - No fligths to Budapest (TZR)
 - Some airports appear in the sea because the islands they're on are not shown on the map
 
