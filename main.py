@@ -27,12 +27,18 @@ def main():
     # print(f"Unique Destinations: {stats['unique_destinations']}")
     # print(f"Most Visited Destination: {stats['most_visited_destination']} ({stats['most_visited_count']} times)")
 
-    airline_delays_df = avg_departure_delay_per_airline(conn)
-    print(airline_delays_df)
-    fig = plot_avg_departure_delay(airline_delays_df)
-    if fig:
-        fig.show()
-    
+    # destination = "ATL"
+    # top_5 = top_5_manufacturers(conn, destination)
+    # print(top_5)
+
+ 
+    distance_vs_arr_fig, correlation = plot_distance_vs_arr_delay(conn)   
+    if distance_vs_arr_fig:
+        distance_vs_arr_fig.show()
+
+    print(f"Correlation coefficient: {correlation:.3f}")
+
+
     conn.close()
 
 if __name__ == "__main__":

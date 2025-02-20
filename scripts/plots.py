@@ -1,9 +1,9 @@
 import plotly.graph_objects as go
 import plotly.express as px
-from scripts.no_category import get_flight_destinations_from_airport_on_day
+from scripts.no_category import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
 from scripts.constants import NYC_AIRPORTS
 
-def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport):
+def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
     Generates a flight path visualization for all flights departing from a given airport on a specific day.
     
@@ -89,7 +89,6 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
     )
     
     return fig, missing_airports
-
 
 def plot_airports_without_flights(conn):
     """
@@ -288,27 +287,31 @@ def plot_airports_with_and_without_flights(conn):
     
     return fig
 
-def plot_avg_departure_delay(df):
+def plot_distance_vs_arr_delay(conn):
     """
-    Creates and returns a Plotly vertical bar chart of the average departure delay per airline.
+    Creates a scatterplot of flight distance vs. arrival delay and calculates the correlation.
 
     Parameters:
-    df (pandas.DataFrame): DataFrame with 'airline_name' and 'avg_dep_delay' columns.
+    distance_vs_arr_df (pandas.DataFrame): DataFrame with 'distance' and 'arr_delay' columns.
 
     Returns:
-    plotly.graph_objects.Figure: A vertical bar chart figure.
+    tuple: (Plotly figure, correlation coefficient)
     """
-    fig = px.bar(
-        df,
-        x="airline_name",  # X-axis: Airline name
-        y="avg_dep_delay",  # Y-axis: Average delay
-        title="Average Departure Delay per Airline",
-        labels={"avg_dep_delay": "Average Departure Delay (minutes)", "airline_name": "Airline"},
-        color="avg_dep_delay",  # Color bars based on delay size
-        color_continuous_scale="Darkmint"
+    # Calculate correlation coefficient
+    distance_vs_arr_df = get_distance_vs_arr_delay(conn)
+    correlation = distance_vs_arr_df["distance"].corr(distance_vs_arr_df["arr_delay"])
+
+    # Create scatter plot
+    fig = px.scatter(
+        distance_vs_arr_df,
+        x="distance",
+        y="arr_delay",
+        title="Flight Distance vs Arrival Delay",
+        labels={"distance": "Distance (miles)", "arr_delay": "Arrival Delay (minutes)"},
+        opacity=0.5
     )
 
-    fig.update_layout(xaxis_tickangle=-45)  # Rotate x-axis labels for readability
-    return fig
+    # Add reference line at 0 delay
+    fig.add_hline(y=0, line_dash="dash", line_color="red")
 
-
+    return fig, correlation

@@ -1,7 +1,6 @@
-import sqlite3
 from pandas import read_sql_query
 
-def get_flight_destinations_from_airport_on_day(conn: sqlite3.Connection, month: int, day: int, airport: str) -> set:
+def get_flight_destinations_from_airport_on_day(conn, month: int, day: int, airport: str) -> set:
     """
     Retrieves all unique flight destinations leaving from a given NYC airport on a specified month and day.
     
@@ -22,7 +21,7 @@ def get_flight_destinations_from_airport_on_day(conn: sqlite3.Connection, month:
     cursor.execute(query, (month, day, airport))
     return {row[0] for row in cursor.fetchall()}
 
-def get_flight_statistics(conn: sqlite3.Connection, month: int, day: int, airport: str) -> dict:
+def get_flight_statistics(conn, month: int, day: int, airport: str) -> dict:
     """
     Returns flight statistics for a given airport on a specific day.
     
@@ -78,22 +77,41 @@ def get_flight_statistics(conn: sqlite3.Connection, month: int, day: int, airpor
         "most_visited_count": most_visited_count,
     }
 
-def avg_departure_delay_per_airline(conn):
+def top_5_manufacturers(conn, destination_airport: str) -> list:
     """
-    Returns a DataFrame with the average departure delay per airline.
+    Returns the top 5 airplane manufacturers for planes flying to the given destination airport.
 
     Parameters:
-    conn (sqlite3.Connection): SQLite database connection.
+    conn (sqlite3.Connection or other DB connection): Database connection object.
+    destination (str): The IATA airport code of the destination.
 
     Returns:
-    pandas.DataFrame: ['airline_name' (str), 'avg_dep_delay' (float)]
+    pandas.DataFrame: A DataFrame with 'manufacturer' and 'num_flights' columns.
     """
     query = """
-        SELECT a.name AS airline_name, AVG(f.dep_delay) AS avg_dep_delay
-        FROM flights f
-        JOIN airlines a ON f.carrier = a.carrier
-        GROUP BY a.name
-        ORDER BY avg_dep_delay DESC;
-        """
+        SELECT planes.manufacturer, COUNT(*) as num_flights FROM flights 
+        JOIN planes ON flights.tailnum = planes.tailnum
+        WHERE flights.dest = ?
+        GROUP BY planes.manufacturer
+        ORDER BY num_flights DESC
+        LIMIT 5;
+    """
 
+    return read_sql_query(query, conn, params=(destination_airport,))
+
+def get_distance_vs_arr_delay(conn):
+    """
+    Retrieves flight distance and arrival delay data.
+
+    Parameters:
+    conn (sqlite3.Connection or other DB connection): Database connection object.
+
+    Returns:
+    pandas.DataFrame: DataFrame with 'distance' and 'arr_delay' columns.
+    """
+    query = """
+        SELECT distance, arr_delay
+        FROM flights
+        WHERE arr_delay IS NOT NULL;
+    """
     return read_sql_query(query, conn)
