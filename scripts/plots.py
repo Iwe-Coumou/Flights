@@ -1,7 +1,7 @@
 import plotly.graph_objects as go
 import plotly.express as px
-from scripts.no_category import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
-from scripts.constants import NYC_AIRPORTS
+from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
+from constants import NYC_AIRPORTS
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
@@ -89,116 +89,6 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
     )
     
     return fig, missing_airports
-
-def plot_airports_without_flights(conn):
-    """
-    Generates a plot of all airports that have no flights to them.
-    
-    Parameters:
-        conn (sqlite3.Connection): SQLite database connection.
-        go (module): Plotly graph_objects module passed from main.py.
-    
-    Returns:
-        go.Figure: A Plotly figure object containing the visualization.
-    """
-    if go is None:
-        raise ValueError("plotly.graph_objects must be passed as the 'go' parameter.")
-    
-    cursor = conn.cursor()
-    query = """
-        SELECT faa, name, lat, lon FROM airports
-        WHERE faa NOT IN (SELECT DISTINCT dest FROM flights);
-    """
-    cursor.execute(query)
-    missing_airports = cursor.fetchall()
-    
-    if not missing_airports:
-        print("All airports receive flights.")
-        return None
-    
-    fig = go.Figure()
-    
-    lons, lats, names = [], [], []
-    for faa, name, lat, lon in missing_airports:
-        lons.append(lon)
-        lats.append(lat)
-        names.append(f"{name} ({faa})")
-    
-    fig.add_trace(go.Scattergeo(
-        lon=lons,
-        lat=lats,
-        hoverinfo='text',
-        text=names,
-        mode='markers',
-        name='Airports with No Flights',
-        marker=dict(size=6, color='red', opacity=0.75)
-    ))
-    
-    fig.update_layout(
-        title_text='Airports Without Incoming Flights',
-        geo=dict(
-            scope="world",
-            showland=True,
-            landcolor="rgb(243, 243, 243)"
-        )
-    )
-    
-    return fig
-
-def plot_airports_with_flights(conn):
-    """
-    Generates a plot of all airports that have at least one incoming flight.
-    
-    Parameters:
-        conn (sqlite3.Connection): SQLite database connection.
-        go (module): Plotly graph_objects module passed from main.py.
-    
-    Returns:
-        go.Figure: A Plotly figure object containing the visualization.
-    """
-    if go is None:
-        raise ValueError("plotly.graph_objects must be passed as the 'go' parameter.")
-    
-    cursor = conn.cursor()
-    query = """
-        SELECT faa, name, lat, lon FROM airports
-        WHERE faa IN (SELECT DISTINCT dest FROM flights);
-    """
-    cursor.execute(query)
-    active_airports = cursor.fetchall()
-    
-    if not active_airports:
-        print("No airports have incoming flights.")
-        return None
-    
-    fig = go.Figure()
-    
-    lons, lats, names = [], [], []
-    for faa, name, lat, lon in active_airports:
-        lons.append(lon)
-        lats.append(lat)
-        names.append(f"{name} ({faa})")
-    
-    fig.add_trace(go.Scattergeo(
-        lon=lons,
-        lat=lats,
-        hoverinfo='text',
-        text=names,
-        mode='markers',
-        name='Airports with Flights',
-        marker=dict(size=6, color='blue', opacity=0.75)
-    ))
-    
-    fig.update_layout(
-        title_text='Airports With Incoming Flights',
-        geo=dict(
-            scope="world",
-            showland=True,
-            landcolor="rgb(243, 243, 243)"
-        )
-    )
-    
-    return fig
 
 def plot_airports_with_and_without_flights(conn):
     """

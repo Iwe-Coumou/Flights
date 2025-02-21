@@ -33,7 +33,7 @@ code blocks for commands
     * STT: 18.3333333 -64.96666666666667
     * BQN: 18.495 -67.12944444444443
     * PSE: 18.0083333 -66.56305555555555
-- No fligths to Budapest (TZR)
+- A lot of airports have no flights going to them
 - Some airports appear in the sea because the islands they're on are not shown on the map
 
 ## Help
