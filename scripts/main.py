@@ -31,10 +31,16 @@ def main():
 
     # print(f"Correlation coefficient: {correlation:.3f}")
 
-    airport_locations = get_airports_locations(conn)
-    new_york_location = get_airports_locations(conn, ["JFK"])[0]
-    flight_directions = compute_flight_directions(new_york_location, airport_locations)
-    print(flight_directions)
+    wind_df = create_flight_dataframe(conn)  # Get flights with precomputed directions
+
+    wind_df_filtered = wind_df.dropna()  # Remove rows with missing values
+
+    fig1, fig2, correlation = analyze_wind_impact_vs_air_time(wind_df_filtered)
+
+    # Display figures
+    fig1.show()
+    fig2.show()
+    print(f"Correlation between wind impact and air time: {correlation:.3f}")
 
     conn.close()
 
