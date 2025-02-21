@@ -26,7 +26,7 @@ An in-depth paragraph about your project and overview of use.
 code blocks for commands
 ```
 
-##Notes
+## Notes
 
 - Missing airports: SJU, STT, BQN, PSE
     * SJU: 18.4333333 -66
