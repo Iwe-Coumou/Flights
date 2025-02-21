@@ -78,13 +78,16 @@ def distances_distribution_gen(df_euclidean, df_geodesic):
     fig.show()
 
     
-    
+def main():
 
-df=file_opener(r"C:\Users\fabio\OneDrive\Desktop\vu uni\data engeneering\group project flights\Flights\Data\airports.csv")
+    df=file_opener(r"Data\airports.csv")
 
-target_airport_code="JFK"
-euclidian=(euclidean_distance_calculator(target_airport_code,df))
-geodesic=(geodesic_distance_calculator(target_airport_code,df))
+    target_airport_code="JFK"
+    euclidian=(euclidean_distance_calculator(target_airport_code,df))
+    geodesic=(geodesic_distance_calculator(target_airport_code,df))
 
-distances_distribution_gen(euclidian,geodesic)
+    distances_distribution_gen(euclidian,geodesic)
 
+
+if __name__ == "__main__":
+    main()
