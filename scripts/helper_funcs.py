@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from pandas import read_sql_query
 
@@ -62,110 +63,101 @@ def get_distance_vs_arr_delay(conn):
     """
     return read_sql_query(query, conn)
 
-def compute_flight_direction(lat1, lon1, lat2, lon2):
+def fetch_airport_coordinates_df(conn):
+    """Fetches airport coordinates as a Pandas DataFrame."""
+    query = "SELECT faa, lat, lon FROM airports;"
+    return pd.read_sql_query(query, conn)
+
+def compute_flight_direction_vectorized(origin_lat, origin_lon, dest_lat, dest_lon):
     """
-    Computes the flight bearing (direction) from an origin to a destination.
-    Converts NumPy float64 values to standard Python float.
+    Computes the flight direction (bearing) using vectorized NumPy operations.
 
     Parameters:
-    lat1, lon1: float - Latitude and longitude of the departure airport.
-    lat2, lon2: float - Latitude and longitude of the destination airport.
+    origin_lat, origin_lon, dest_lat, dest_lon (Series): Latitude & Longitude values.
 
     Returns:
-    float - Bearing in degrees (0° = North, 90° = East, etc.), as a standard Python float.
+    Series: Bearing in degrees.
     """
-    # Convert degrees to radians
-    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
-
+    lat1, lon1, lat2, lon2 = map(np.radians, [origin_lat, origin_lon, dest_lat, dest_lon])
     delta_lon = lon2 - lon1
 
     x = np.sin(delta_lon) * np.cos(lat2)
-    y = np.cos(lat1) * np.sin(lat2) - (np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon))
+    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
 
     initial_bearing = np.arctan2(x, y)
+    return (np.degrees(initial_bearing) + 360) % 360  # Normalize to [0, 360]
 
-    # Convert from radians to degrees and normalize, then ensure it's a standard Python float
-    bearing = float((np.degrees(initial_bearing) + 360) % 360)  # Convert np.float64 to float
-    return bearing
-
-def compute_inner_product(flight_direction, wind_direction, wind_speed):
+def create_flight_dataframe(conn):
     """
-    Computes the inner product between the flight direction and wind vector.
-
-    Parameters:
-    flight_direction (float): Direction of the flight (in degrees).
-    wind_direction (float): Direction of the wind (in degrees).
-    wind_speed (float): Wind speed (scalar).
-
-    Returns:
-    float: The inner product (positive if wind helps the flight, negative if it opposes).
+    Fetches flight data, merges with airport coordinates, computes flight direction, 
+    and automatically adds the wind impact column.
     """
-    angle_difference = np.radians(flight_direction - wind_direction)
-    inner_product = wind_speed * np.cos(angle_difference)
-    return inner_product
-
-def compute_flight_directions(airport_from, destinations):
-    """
-    Computes flight directions from a single origin airport to multiple destinations.
-
-    Parameters:
-    airport_from (tuple): A tuple containing:
-        - origin_name (str): Name or IATA code of the origin airport.
-        - origin_lat (float): Latitude of the origin airport.
-        - origin_lon (float): Longitude of the origin airport.
-
-    destinations (list of tuples): A list where each tuple contains:
-        - dest_name (str): Name or IATA code of the destination airport.
-        - dest_lat (float): Latitude of the destination airport.
-        - dest_lon (float): Longitude of the destination airport.
-
-    Returns:
-    dict: A dictionary structured as:
-        {
-            "LAX": 270.5,
-            "ORD": 285.2,
-            "ATL": 245.8,
-            ...
-        }
-    """
-    origin_name, lat1, lon1 = airport_from  # Unpack single origin airport
-    flight_directions = {}
-
-    for dest_name, dest_lat, dest_lon in destinations:
-        direction = compute_flight_direction(lat1, lon1, dest_lat, dest_lon)
-        flight_directions[dest_name] = direction  # Store in dictionary
-
-    return flight_directions
-
-def get_airports_locations(conn, airport_list=None):
-    """
-    Fetches airport locations from an SQLite database.
-
-    Parameters:
-    conn (sqlite3.Connection): SQLite database connection.
-    airport_list (list of str, optional): List of airport IATA codes to fetch.
-                                           If None, fetches all airports.
-
-    Returns:
-    list of tuples: Each tuple contains (airport_name, latitude, longitude).
-    """
-    # Base query
+    
     query = """
-        SELECT faa, lat, lon
-        FROM airports
+        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time, 
+               w.wind_dir, w.wind_speed
+        FROM flights f
+        LEFT JOIN weather w 
+        ON f.origin = w.origin AND f.time_hour = w.time_hour;
     """
+    df = pd.read_sql_query(query, conn)
 
-    # If a specific list of airports is given, add WHERE clause
-    if airport_list:
-        placeholders = ",".join(["?"] * len(airport_list))  # Create ?,?,? for parameterized query
-        query += f" WHERE faa IN ({placeholders})"
+    # Fetch airport coordinates
+    airport_df = fetch_airport_coordinates_df(conn)
 
-    # Execute query and fetch results
-    cursor = conn.cursor()
-    if airport_list:
-        cursor.execute(query, airport_list)  # Pass airport list as parameters
-    else:
-        cursor.execute(query)  # Fetch all airports
+    # Compute flight direction
+    unique_pairs = df[['origin', 'dest']].drop_duplicates()
+    unique_pairs = unique_pairs.merge(airport_df, left_on="origin", right_on="faa", how="left")\
+                               .rename(columns={"lat": "origin_lat", "lon": "origin_lon"})\
+                               .drop(columns=["faa"])
+    unique_pairs = unique_pairs.merge(airport_df, left_on="dest", right_on="faa", how="left")\
+                               .rename(columns={"lat": "dest_lat", "lon": "dest_lon"})\
+                               .drop(columns=["faa"])
+    
+    unique_pairs["direction"] = compute_flight_direction_vectorized(
+        unique_pairs["origin_lat"], unique_pairs["origin_lon"], 
+        unique_pairs["dest_lat"], unique_pairs["dest_lon"]
+    )
 
-    results = cursor.fetchall()  # Get results as list of tuples
-    return results
+    df = df.merge(unique_pairs[['origin', 'dest', 'direction']], on=['origin', 'dest'], how='left')
+
+    # **Compute Wind Impact Automatically**
+    df["wind_impact"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
+        axis=1
+    )
+
+    return df
+
+def compute_wind_impact(flight_direction, wind_direction, wind_speed):
+    """
+    Computes the impact of wind on the flight by considering both wind direction and wind speed.
+
+    Parameters:
+    flight_direction (float): Flight direction in degrees.
+    wind_direction (float): Wind direction in degrees.
+    wind_speed (float): Wind speed in knots.
+
+    Returns:
+    float: Adjusted wind impact value.
+    """
+    if pd.isna(flight_direction) or pd.isna(wind_direction) or pd.isna(wind_speed):
+        return None  # Handle missing values
+
+    angle_difference = np.radians(flight_direction - wind_direction)
+    return np.cos(angle_difference) * wind_speed  # Multiply by wind speed
+
+def add_wind_and_inner_product(df):
+    """
+    Adds wind direction and inner product columns to the flight DataFrame.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with wind direction and inner product.
+    """
+    df["inner_product"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"]), axis=1
+    )
+    return df
