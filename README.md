@@ -35,6 +35,12 @@ data cleaning:
    - missing flights data: dep_time, dep_delay, arr_time, arr_delay, tailnum, airtime
    - missing airport data: tz, dst, tzone
 
+Iwe:
+   - improve wind direction vs airtime scatterplot
+   - add airports
+   - get rid of useless airports
+   - setup data cleaning file
+
 ## Notes
 
 - Missing airports: SJU, STT, BQN, PSE
