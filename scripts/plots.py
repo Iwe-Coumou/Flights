@@ -92,36 +92,37 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
     
     return fig, missing_airports
 
+import plotly.graph_objects as go
+import sqlite3
+
 def plot_airports_with_and_without_flights(conn):
     """
     Generates a single plot with:
-    - Red dots for airports that have no incoming flights.
-    - Blue dots for airports that receive flights.
+    - Red dots for airports that have no incoming and no outgoing flights.
+    - Blue dots for airports that have either incoming or outgoing flights.
     
     Parameters:
         conn (sqlite3.Connection): SQLite database connection.
-        go (module): Plotly graph_objects module passed from main.py.
     
     Returns:
         go.Figure: A Plotly figure object containing the visualization.
     """
-    if go is None:
-        raise ValueError("plotly.graph_objects must be passed as the 'go' parameter.")
-    
     cursor = conn.cursor()
     
-    # Query for airports with no incoming flights
+    # Query for airports with neither incoming nor outgoing flights
     query_no_flights = """
         SELECT faa, name, lat, lon FROM airports
-        WHERE faa NOT IN (SELECT DISTINCT dest FROM flights);
+        WHERE faa NOT IN (SELECT DISTINCT dest FROM flights)
+        AND faa NOT IN (SELECT DISTINCT origin FROM flights);
     """
     cursor.execute(query_no_flights)
     missing_airports = cursor.fetchall()
     
-    # Query for airports that receive flights
+    # Query for airports that have at least one incoming or outgoing flight
     query_with_flights = """
         SELECT faa, name, lat, lon FROM airports
-        WHERE faa IN (SELECT DISTINCT dest FROM flights);
+        WHERE faa IN (SELECT DISTINCT dest FROM flights)
+        OR faa IN (SELECT DISTINCT origin FROM flights);
     """
     cursor.execute(query_with_flights)
     active_airports = cursor.fetchall()
@@ -146,7 +147,7 @@ def plot_airports_with_and_without_flights(conn):
             marker=dict(size=6, color='red', opacity=0.75)
         ))
     else:
-        print("All airports receive flights.")
+        print("All airports have at least one flight.")
     
     # Add airports with flights (blue)
     if active_airports:
@@ -166,10 +167,10 @@ def plot_airports_with_and_without_flights(conn):
             marker=dict(size=6, color='blue', opacity=0.75)
         ))
     else:
-        print("No airports have incoming flights.")
+        print("No airports have flights.")
     
     fig.update_layout(
-        title_text='Airports With and Without Incoming Flights',
+        title_text='Airports With and Without Any Flights',
         geo=dict(
             scope="world",
             showland=True,
@@ -178,6 +179,7 @@ def plot_airports_with_and_without_flights(conn):
     )
     
     return fig
+
 
 def plot_distance_vs_arr_delay(conn):
     """
