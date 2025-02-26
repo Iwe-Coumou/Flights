@@ -149,7 +149,9 @@ def plot_time_zones(df):
     )
 
     fig.show()
+    
 
+    
 
 def main():
     df_airports = pd.read_csv(r"data/airports.csv")
