@@ -1,6 +1,7 @@
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+import sqlite3 as sql
 
 #Shows figure of all airports (including na)
 def map_of_all_airports(df_airports: pd.DataFrame) -> None:
@@ -150,7 +151,38 @@ def plot_time_zones(df):
 
     fig.show()
     
+def get_plane_type_counts(departing_airport: str, arriving_airport: str) -> dict:
+    """
+    Returns a dictionary describing how many times each plane type was used
+    for a given flight trajectory (departing_airport -> arriving_airport).
+    
+    :param departing_airport: IATA code of the origin airport (e.g., "JFK")
+    :param arriving_airport: IATA code of the destination airport (e.g., "LAX")
+    :return: Dictionary {plane_type: count}
+    """
 
+    conn = sql.connect("flights database.db")
+    cursor = conn.cursor()
+    
+    query = """
+    SELECT p.type, COUNT(*) as count
+    FROM flights f
+    JOIN planes p ON f.tailnum = p.tailnum
+    WHERE f.origin = ? AND f.dest = ?
+    GROUP BY p.type
+    ORDER BY count DESC;
+    """
+
+    # Execute query with the provided airports
+    cursor.execute(query, (departing_airport, arriving_airport))
+    
+    # Fetch results and convert to a dictionary
+    results = dict(cursor.fetchall())
+
+    # Close the database connection
+    conn.close()
+
+    return results
     
 
 def main():
