@@ -1,4 +1,6 @@
 # helper_funcs.py
+import numpy as np
+import pandas as pd
 
 """
 Module with additional utility functions for querying the DB 
@@ -47,12 +49,22 @@ def get_distance_vs_arr_delay(conn):
     """
     return read_sql_query(query, conn)
 
-def compute_flight_direction(lat1, lon1, lat2, lon2):
+def fetch_airport_coordinates_df(conn):
+    """Fetches airport coordinates as a Pandas DataFrame."""
+    query = "SELECT faa, lat, lon FROM airports;"
+    return pd.read_sql_query(query, conn)
+
+def compute_flight_direction_vectorized(origin_lat, origin_lon, dest_lat, dest_lon):
     """
-    Computes the bearing (direction) of a flight between two lat/lon points. 
-    Returns it in degrees (0°=North, 90°=East, etc.).
+    Computes the flight direction (bearing) using vectorized NumPy operations.
+
+    Parameters:
+    origin_lat, origin_lon, dest_lat, dest_lon (Series): Latitude & Longitude values.
+
+    Returns:
+    Series: Bearing in degrees.
     """
-    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    lat1, lon1, lat2, lon2 = map(np.radians, [origin_lat, origin_lon, dest_lat, dest_lon])
     delta_lon = lon2 - lon1
     x = np.sin(delta_lon) * np.cos(lat2)
     y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1)*np.cos(lat2)*np.cos(delta_lon)
@@ -138,3 +150,82 @@ def update_planes_speed(conn):
     
 # one create a new table and modify that the other one modify the original
 
+    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
+
+    initial_bearing = np.arctan2(x, y)
+    return (np.degrees(initial_bearing) + 360) % 360  # Normalize to [0, 360]
+
+def create_flight_dataframe(conn):
+    """
+    Fetches flight data, merges with airport coordinates, computes flight direction, 
+    and automatically adds the wind impact column.
+    """
+    
+    query = """
+        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time, 
+               w.wind_dir, w.wind_speed
+        FROM flights f
+        LEFT JOIN weather w 
+        ON f.origin = w.origin AND f.time_hour = w.time_hour;
+    """
+    df = pd.read_sql_query(query, conn)
+
+    # Fetch airport coordinates
+    airport_df = fetch_airport_coordinates_df(conn)
+
+    # Compute flight direction
+    unique_pairs = df[['origin', 'dest']].drop_duplicates()
+    unique_pairs = unique_pairs.merge(airport_df, left_on="origin", right_on="faa", how="left")\
+                               .rename(columns={"lat": "origin_lat", "lon": "origin_lon"})\
+                               .drop(columns=["faa"])
+    unique_pairs = unique_pairs.merge(airport_df, left_on="dest", right_on="faa", how="left")\
+                               .rename(columns={"lat": "dest_lat", "lon": "dest_lon"})\
+                               .drop(columns=["faa"])
+    
+    unique_pairs["direction"] = compute_flight_direction_vectorized(
+        unique_pairs["origin_lat"], unique_pairs["origin_lon"], 
+        unique_pairs["dest_lat"], unique_pairs["dest_lon"]
+    )
+
+    df = df.merge(unique_pairs[['origin', 'dest', 'direction']], on=['origin', 'dest'], how='left')
+
+    # **Compute Wind Impact Automatically**
+    df["wind_impact"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
+        axis=1
+    )
+
+    return df
+
+def compute_wind_impact(flight_direction, wind_direction, wind_speed):
+    """
+    Computes the impact of wind on the flight by considering both wind direction and wind speed.
+
+    Parameters:
+    flight_direction (float): Flight direction in degrees.
+    wind_direction (float): Wind direction in degrees.
+    wind_speed (float): Wind speed in knots.
+
+    Returns:
+    float: Adjusted wind impact value.
+    """
+    if pd.isna(flight_direction) or pd.isna(wind_direction) or pd.isna(wind_speed):
+        return None  # Handle missing values
+
+    angle_difference = np.radians(flight_direction - wind_direction)
+    return np.cos(angle_difference) * wind_speed  # Multiply by wind speed
+
+def add_wind_and_inner_product(df):
+    """
+    Adds wind direction and inner product columns to the flight DataFrame.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with wind direction and inner product.
+    """
+    df["inner_product"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"]), axis=1
+    )
+    return df

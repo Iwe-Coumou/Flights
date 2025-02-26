@@ -6,7 +6,7 @@ e poi produce 6 subplots:
 (1) JFK DB, (2) JFK CSV, (3) EWR DB, (4) EWR CSV, (5) LGA DB, (6) LGA CSV.
 """
 
-import sqlite3
+import sqlite3 as sql
 import pandas as pd
 from constants import *
 from distance_calculations import file_opener, geodesic_distance_calculator
@@ -21,40 +21,41 @@ from helper_funcs import create_planes_copy_with_speed
 
 
 def main():
+    conn = sql.connect("data/flights_database.db")
+    month, day = 5, 23,
+    
+    for NYC_airport in NYC_AIRPORTS:
+    # Plot flight destinations from a specific airport on a given date
+        fig, missing_airports = plot_destinations_on_day_from_NYC_airport(conn, month, day, NYC_airport)
+        if fig:
+            fig.show()
 
-    conn = sqlite3.connect(DATABASE_PATH)
+    # Plot both airports with and without flights
+    fig = plot_airports_with_and_without_flights(conn)
+    if fig:
+        fig.show()
 
-    df_csv = file_opener("../Data/airports.csv")
+    destination = "ATL"
+    top_5 = top_5_manufacturers(conn, destination)
+    print(top_5)
 
-    # dist_plots_args = []  
+ 
+    distance_vs_arr_fig, correlation = plot_distance_vs_arr_delay(conn)   
+    if distance_vs_arr_fig:
+        distance_vs_arr_fig.show()
 
-    # for code in NYC_AIRPORTS:
-    #     query = f"""
-    #         SELECT DISTINCT origin, dest, (distance * {MILES_TO_KM}) AS distance
-    #         FROM flights
-    #         WHERE origin='{code}' OR dest='{code}'
-    #     """
-    #     df_db_dist = pd.read_sql_query(query, conn)
+    print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
 
-    #     df_csv_geo = geodesic_distance_calculator(code, df_csv)
+    wind_df = create_flight_dataframe(conn)  # Get flights with precomputed directions
 
-    #     route_airports = set(df_db_dist["origin"]) | set(df_db_dist["dest"])
-    #     if code in route_airports:
-    #         route_airports.remove(code)
+    wind_df_filtered = wind_df.dropna()  # Remove rows with missing values
 
-    #     df_csv_geo_filtered = df_csv_geo[df_csv_geo["faa"].isin(route_airports)]
+    fig1, fig2, correlation = analyze_wind_impact_vs_air_time(wind_df_filtered)
 
-    #     dist_plots_args.append((df_db_dist, f"{code} - DB Distances", "distance"))
-    #     dist_plots_args.append((df_csv_geo_filtered, f"{code} - CSV Distances", "geodesic_distance"))
-
-    # multi_distance_distribution_gen(*dist_plots_args)
-
-
-    create_planes_copy_with_speed(conn, recalc_speed=True)
-
-
-
-
+    # Display figures
+    fig1.show()
+    fig2.show()
+    print(f"Correlation between wind impact and air time: {correlation:.3f}")
 
     conn.close()
 

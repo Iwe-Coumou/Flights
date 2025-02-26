@@ -15,6 +15,8 @@ from helper_funcs import get_flight_destinations_from_airport_on_day, get_distan
 from constants import NYC_AIRPORTS
 from plotly.subplots import make_subplots
 import pandas as pd
+import numpy as np
+import scipy.stats as stats
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
@@ -98,24 +100,37 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
     )
     return fig, missing_airports
 
+import plotly.graph_objects as go
+import sqlite3
+
 def plot_airports_with_and_without_flights(conn):
     """
-    Creates a single plot with:
-      - Red dots for airports that have no incoming flights
-      - Blue dots for airports that do receive flights
-    Returns a Plotly figure object.
+    Generates a single plot with:
+    - Red dots for airports that have no incoming and no outgoing flights.
+    - Blue dots for airports that have either incoming or outgoing flights.
+    
+    Parameters:
+        conn (sqlite3.Connection): SQLite database connection.
+    
+    Returns:
+        go.Figure: A Plotly figure object containing the visualization.
     """
     cursor = conn.cursor()
+    
+    # Query for airports with neither incoming nor outgoing flights
     query_no_flights = """
         SELECT faa, name, lat, lon FROM airports
-        WHERE faa NOT IN (SELECT DISTINCT dest FROM flights);
+        WHERE faa NOT IN (SELECT DISTINCT dest FROM flights)
+        AND faa NOT IN (SELECT DISTINCT origin FROM flights);
     """
     cursor.execute(query_no_flights)
     missing_airports = cursor.fetchall()
-
+    
+    # Query for airports that have at least one incoming or outgoing flight
     query_with_flights = """
         SELECT faa, name, lat, lon FROM airports
-        WHERE faa IN (SELECT DISTINCT dest FROM flights);
+        WHERE faa IN (SELECT DISTINCT dest FROM flights)
+        OR faa IN (SELECT DISTINCT origin FROM flights);
     """
     cursor.execute(query_with_flights)
     active_airports = cursor.fetchall()
@@ -139,8 +154,10 @@ def plot_airports_with_and_without_flights(conn):
             name='Airports with No Flights',
             marker=dict(size=6, color='red', opacity=0.75)
         ))
-
-    # Airports with flights (blue)
+    else:
+        print("All airports have at least one flight.")
+    
+    # Add airports with flights (blue)
     if active_airports:
         flight_lons, flight_lats, flight_names = [], [], []
         for faa, name, lat, lon in active_airports:
@@ -157,9 +174,11 @@ def plot_airports_with_and_without_flights(conn):
             name='Airports with Flights',
             marker=dict(size=6, color='blue', opacity=0.75)
         ))
-
+    else:
+        print("No airports have flights.")
+    
     fig.update_layout(
-        title_text='Airports With and Without Incoming Flights',
+        title_text='Airports With and Without Any Flights',
         geo=dict(
             scope="world",
             showland=True,
@@ -167,6 +186,7 @@ def plot_airports_with_and_without_flights(conn):
         )
     )
     return fig
+
 
 def plot_distance_vs_arr_delay(conn):
     """
@@ -250,3 +270,56 @@ def multi_distance_distribution_gen(*args):
     )
 
     fig.show()
+
+def analyze_wind_impact_vs_air_time(df):
+    """
+    Analyzes the relationship between wind impact sign and air time using Plotly.
+    
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing 'wind_impact' and 'air_time'.
+    
+    Returns:
+    tuple: (boxplot_figure, scatterplot_figure, correlation)
+    """
+    df = df.dropna(subset=["air_time", "wind_impact"])
+    df["wind_type"] = np.where(df["wind_impact"] < 0, "Headwind", "Tailwind")
+
+    # Compute correlation (Pearson correlation coefficient)
+    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
+
+    # Boxplot to compare air time for Headwind vs Tailwind
+    fig1 = px.box(df, x="wind_type", y="air_time", color="wind_type",
+                  title="Air Time vs. Wind Impact Type",
+                  labels={"wind_type": "Wind Type", "air_time": "Air Time (minutes)"},
+                  color_discrete_map={"Headwind": "red", "Tailwind": "green"})
+
+    # Scatter plot (manually adding a trendline)
+    fig2 = go.Figure()
+
+    fig2.add_trace(go.Scatter(
+        x=df["wind_impact"], 
+        y=df["air_time"], 
+        mode='markers', 
+        marker=dict(opacity=0.5), 
+        name="Flights"
+    ))
+
+    # Compute trendline manually (simple linear regression)
+    x_values = df["wind_impact"]
+    y_values = df["air_time"]
+    slope, intercept = np.polyfit(x_values, y_values, 1)  # Fit a linear model
+    trend_x = np.linspace(min(x_values), max(x_values), 100)
+    trend_y = slope * trend_x + intercept
+
+    # Add the trendline
+    fig2.add_trace(go.Scatter(
+        x=trend_x, y=trend_y, mode='lines', name='Trendline', line=dict(color='blue')
+    ))
+
+    fig2.update_layout(
+        title="Air Time vs. Wind Impact",
+        xaxis_title="Wind Impact",
+        yaxis_title="Air Time (minutes)"
+    )
+
+    return fig1, fig2, correlation

@@ -25,8 +25,23 @@ An in-depth paragraph about your project and overview of use.
 ```
 code blocks for commands
 ```
+## To Do
+data cleaning:
+   - redo timezones(maybe)
+   - get rid of airports without fligths(maybe)
+   - add missing airports to the airports table
+   - missing weather data: wind speed, wind direction
+   - missing plane data: year
+   - missing flights data: dep_time, dep_delay, arr_time, arr_delay, tailnum, airtime
+   - missing airport data: tz, dst, tzone
 
-##Notes
+Iwe:
+   - improve wind direction vs airtime scatterplot
+   - add airports
+   - get rid of useless airports
+   - setup data cleaning file
+
+## Notes
 
 - Missing airports: SJU, STT, BQN, PSE
     * SJU: 18.4333333 -66
