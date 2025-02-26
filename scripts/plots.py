@@ -1,57 +1,64 @@
+# plots.py
+
+"""
+Module gathering all plotting functions for this project.
+Includes:
+- Plot of flights departing from NYC airports on a given day
+- Plot of airports that do/do not receive flights
+- Plot distance vs arrival delay
+- Multi-distance distribution histogram plotting
+"""
+
 import plotly.graph_objects as go
 import plotly.express as px
 from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
 from constants import NYC_AIRPORTS
+from plotly.subplots import make_subplots
+import pandas as pd
 import numpy as np
 import scipy.stats as stats
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
-    Generates a flight path visualization for all flights departing from a given airport on a specific day.
-    
-    Parameters:
-        conn (sqlite3.Connection): SQLite database connection.
-        month (int): Month of the flight (1-12).
-        day (int): Day of the flight (1-31).
-        NYC_airport (str): The NYC airport FAA code (e.g., 'JFK', 'LGA', 'EWR').
-
-    Returns:
-        go.Figure: A Plotly figure object containing the flight visualization.
-        list: A list of missing airports that were not found in the database.
+    Generates a flight path visualization for all flights departing from a given NYC airport 
+    on a specific day (month/day). 
+    Returns (fig, missing_airports).
     """
     if NYC_airport not in NYC_AIRPORTS:
-        print(f"Error: Home base airport {NYC_airport} not in New York City.")
+        print(f"Error: '{NYC_airport}' is not recognized as a NYC airport.")
         return None, []
 
+    # Retrieve destination codes from the DB
     FAA_codes = get_flight_destinations_from_airport_on_day(conn, month, day, NYC_airport)
-    
     cursor = conn.cursor()
     cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (NYC_airport,))
     home_base_data = cursor.fetchone()
+
     if not home_base_data:
-        print(f"Error: Home base airport {NYC_airport} not found in the database.")
+        print(f"Error: Home base '{NYC_airport}' not found in the database.")
         return None, []
-    
+
     home_base_name, home_base_lat, home_base_lon = home_base_data
     lons, lats, dest_lons, dest_lats, dest_names = [], [], [], [], []
     missing_airports = []
     fig = go.Figure()
-    
-    for FAA_code in FAA_codes:
-        cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (FAA_code,))
+
+    # For each destination, gather data and plot lines
+    for code in FAA_codes:
+        cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (code,))
         airport_data = cursor.fetchone()
         if not airport_data:
-            missing_airports.append(FAA_code)
+            missing_airports.append(code)
             continue
-        
         airport_name, airport_lat, airport_lon = airport_data
         dest_lons.append(airport_lon)
         dest_lats.append(airport_lat)
-        dest_names.append(f"{airport_name} ({FAA_code})")
-        
+        dest_names.append(f"{airport_name} ({code})")
+
         lons.extend([home_base_lon, airport_lon, None])
         lats.extend([home_base_lat, airport_lat, None])
-    
+
+    # Flight paths
     fig.add_trace(go.Scattergeo(
         lon=lons,
         lat=lats,
@@ -60,7 +67,8 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
         opacity=0.7,
         showlegend=False
     ))
-    
+
+    # Destination markers
     fig.add_trace(go.Scattergeo(
         lon=dest_lons,
         lat=dest_lats,
@@ -71,6 +79,7 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
         marker=dict(size=6, color='red', opacity=0.85)
     ))
 
+    # Home base marker
     fig.add_trace(go.Scattergeo(
         lon=[home_base_lon],
         lat=[home_base_lat],
@@ -86,10 +95,9 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
         geo=dict(
             scope="world",
             showland=True,
-            landcolor="rgb(243, 243, 243)",
+            landcolor="rgb(243, 243, 243)"
         )
     )
-    
     return fig, missing_airports
 
 import plotly.graph_objects as go
@@ -126,17 +134,17 @@ def plot_airports_with_and_without_flights(conn):
     """
     cursor.execute(query_with_flights)
     active_airports = cursor.fetchall()
-    
+
     fig = go.Figure()
-    
-    # Add airports with no flights (red)
+
+    # Airports with no flights (red)
     if missing_airports:
         no_flight_lons, no_flight_lats, no_flight_names = [], [], []
         for faa, name, lat, lon in missing_airports:
             no_flight_lons.append(lon)
             no_flight_lats.append(lat)
             no_flight_names.append(f"{name} ({faa})")
-        
+
         fig.add_trace(go.Scattergeo(
             lon=no_flight_lons,
             lat=no_flight_lats,
@@ -156,7 +164,7 @@ def plot_airports_with_and_without_flights(conn):
             flight_lons.append(lon)
             flight_lats.append(lat)
             flight_names.append(f"{name} ({faa})")
-        
+
         fig.add_trace(go.Scattergeo(
             lon=flight_lons,
             lat=flight_lats,
@@ -177,25 +185,18 @@ def plot_airports_with_and_without_flights(conn):
             landcolor="rgb(243, 243, 243)"
         )
     )
-    
     return fig
 
 
 def plot_distance_vs_arr_delay(conn):
     """
-    Creates a scatterplot of flight distance vs. arrival delay and calculates the correlation.
-
-    Parameters:
-    distance_vs_arr_df (pandas.DataFrame): DataFrame with 'distance' and 'arr_delay' columns.
-
-    Returns:
-    tuple: (Plotly figure, correlation coefficient)
+    Creates a scatter plot of flight distance vs. arrival delay, 
+    and calculates the correlation between these two variables.
+    Returns (figure, correlation).
     """
-    # Calculate correlation coefficient
     distance_vs_arr_df = get_distance_vs_arr_delay(conn)
     correlation = distance_vs_arr_df["distance"].corr(distance_vs_arr_df["arr_delay"])
 
-    # Create scatter plot
     fig = px.scatter(
         distance_vs_arr_df,
         x="distance",
@@ -205,10 +206,70 @@ def plot_distance_vs_arr_delay(conn):
         opacity=0.5
     )
 
-    # Add reference line at 0 delay
+    # Add a reference line at 0 delay
     fig.add_hline(y=0, line_dash="dash", line_color="red")
 
     return fig, correlation
+
+def multi_distance_distribution_gen(*args):
+    """
+    Creates multiple histogram subplots in a single figure.
+    Each item in *args should be a tuple: (df, title, column_name).
+
+    Example usage:
+    multi_distance_distribution_gen(
+        (df_1, "Title 1", "distance"),
+        (df_2, "Title 2", "distance"),
+        ...
+    )
+    """
+    num_graphs = len(args)
+    if num_graphs == 0:
+        raise ValueError("No dataframes provided to plot.")
+
+    rows = (num_graphs + 1) // 2  # 2 subplots per row
+    cols = 2
+
+    fig = make_subplots(
+        rows=rows, cols=cols,
+        subplot_titles=[title for _, title, _ in args],
+        shared_xaxes=True,
+        shared_yaxes=True
+    )
+
+    colors = ["blue", "green", "red", "purple", "orange", "cyan", "magenta", "yellow"]
+    color_index = 0
+
+    for i, (df, title, column) in enumerate(args):
+        if column not in df.columns:
+            raise ValueError(f"The column '{column}' does not exist in '{title}' DataFrame")
+
+        r = (i // 2) + 1
+        c = (i % 2) + 1
+
+        fig.add_trace(
+            go.Histogram(
+                x=df[column],
+                name=title,
+                opacity=0.75,
+                marker_color=colors[color_index % len(colors)],
+                nbinsx=30
+            ),
+            row=r,
+            col=c
+        )
+
+        color_index += 1
+
+    fig.update_layout(
+        title="Comparison of Distance Distributions",
+        bargap=0.1,
+        showlegend=False,
+        width=900,
+        height=rows * 400
+    )
+
+    fig.show()
 
 def analyze_wind_impact_vs_air_time(df):
     """

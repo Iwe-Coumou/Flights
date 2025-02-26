@@ -1,9 +1,24 @@
-import sqlite3 as sql
+"""
+Entry point of the application.
+Connects to the actual DB, retrieves real distances for JFK/EWR/LGA,
+calculates geodesic distances from CSV (filtrando le rotte effettive),
+e poi produce 6 subplots:
+(1) JFK DB, (2) JFK CSV, (3) EWR DB, (4) EWR CSV, (5) LGA DB, (6) LGA CSV.
+"""
 
-from plots import *
-from helper_funcs import *
-from test import *
+import sqlite3 as sql
+import pandas as pd
 from constants import *
+from distance_calculations import file_opener, geodesic_distance_calculator
+from plots import multi_distance_distribution_gen
+from helper_funcs import create_planes_copy_with_speed
+
+
+
+
+
+
+
 
 def main():
     conn = sql.connect("data/flights_database.db")
