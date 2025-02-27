@@ -296,5 +296,37 @@ def analyze_wind_impact_vs_air_time(df):
                       color="wind_type", 
                       color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
     
-    return fig2, correlation
+    return fig2, correlation  
+    
+def get_avg_departure_delay(db_name="flights_database.db"):
 
+    connection = sqlite3.connect(db_name)
+    cursor = connection.cursor()
+
+    query = """
+        SELECT airlines.name AS airline_name, AVG(flights.dep_delay) AS avg_dep_delay 
+        FROM flights 
+        JOIN airlines ON flights.carrier = airlines.carrier 
+        GROUP BY airlines.name
+    """
+    cursor.execute(query)
+    
+    rows = cursor.fetchall()
+    df_delays = pd.DataFrame(rows, columns=["Airline", "Average departure delay"])
+
+    connection.close()
+
+    return df_delays  
+
+
+def plot_avg_departure_delay(df_delays):
+    """Plots the average departure delay per airline."""
+    plt.figure(figsize=(12, 6))
+    plt.bar(df_delays["Airline"], df_delays["Average departure delay"], color="skyblue")
+    plt.xlabel("Airline")
+    plt.ylabel("Average Departure Delay (minutes)")
+    plt.title("Average Departure Delay per Airline")
+    plt.xticks(rotation=45, ha="right")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.tight_layout()
+    plt.show()

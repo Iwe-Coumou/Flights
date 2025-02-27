@@ -1,4 +1,5 @@
 # helper_funcs.py
+import sqlite3
 import numpy as np
 import pandas as pd
 
@@ -225,3 +226,31 @@ def add_wind_and_inner_product(df):
         lambda row: compute_wind_impact(row["direction"], row["wind_dir"]), axis=1
     )
     return df
+
+def get_ny_origin_airports(conn):
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT airports.* 
+        FROM airports 
+        JOIN flights ON airports.faa = flights.origin 
+        WHERE airports.tzone = 'America/New_York';
+    """
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+    df_origins = pd.DataFrame(rows, columns=[x[0] for x in cursor.description])
+
+    return df_origins
+
+def amount_of_delayed_flights(conn, start_month, end_month, destination):
+    cursor = conn.cursor()
+
+    min_delay = 0
+
+    query = f"SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dest = ? AND dep_delay > ?;"
+    cursor.execute(query, (start_month, end_month, destination, min_delay))
+
+    amount_of_delayed_flights = cursor.fetchone()[0]
+
+    return amount_of_delayed_flights
