@@ -151,48 +151,39 @@ def update_planes_speed(conn):
     """)
     conn.commit()
 
-
-def create_flight_dataframe(conn):
+def create_flight_direction_mapping_table(conn):
     """
-    Fetches flight data, merges with airport coordinates, computes flight direction, 
-    and automatically adds the wind impact column.
+    Creates a new table 'flight_direction_map' in the database that stores each unique
+    origin-destination pair and its computed flight direction (bearing).
     """
+    # Step 1: Retrieve distinct origin-dest pairs
+    unique_pairs_df = pd.read_sql_query("SELECT DISTINCT origin, dest FROM flights;", conn)
     
-    query = """
-        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time, 
-               w.wind_dir, w.wind_speed
-        FROM flights f
-        LEFT JOIN weather w 
-        ON f.origin = w.origin AND f.time_hour = w.time_hour;
-    """
-    df = pd.read_sql_query(query, conn)
-
-    # Fetch airport coordinates
+    # Step 2: Fetch airport coordinates
     airport_df = fetch_airport_coordinates_df(conn)
-
-    # Compute flight direction
-    unique_pairs = df[['origin', 'dest']].drop_duplicates()
-    unique_pairs = unique_pairs.merge(airport_df, left_on="origin", right_on="faa", how="left")\
-                               .rename(columns={"lat": "origin_lat", "lon": "origin_lon"})\
-                               .drop(columns=["faa"])
-    unique_pairs = unique_pairs.merge(airport_df, left_on="dest", right_on="faa", how="left")\
-                               .rename(columns={"lat": "dest_lat", "lon": "dest_lon"})\
-                               .drop(columns=["faa"])
     
-    unique_pairs["direction"] = compute_flight_direction_vectorized(
-        unique_pairs["origin_lat"], unique_pairs["origin_lon"], 
-        unique_pairs["dest_lat"], unique_pairs["dest_lon"]
+    # Merge to add origin coordinates
+    unique_pairs_df = unique_pairs_df.merge(
+        airport_df, left_on="origin", right_on="faa", how="left"
+    ).rename(columns={"lat": "origin_lat", "lon": "origin_lon"}).drop(columns=["faa"])
+    
+    # Merge to add destination coordinates
+    unique_pairs_df = unique_pairs_df.merge(
+        airport_df, left_on="dest", right_on="faa", how="left"
+    ).rename(columns={"lat": "dest_lat", "lon": "dest_lon"}).drop(columns=["faa"])
+    
+    # Step 3: Compute flight direction (bearing) using vectorized NumPy operations
+    unique_pairs_df["direction"] = compute_flight_direction_vectorized(
+        unique_pairs_df["origin_lat"], unique_pairs_df["origin_lon"],
+        unique_pairs_df["dest_lat"], unique_pairs_df["dest_lon"]
     )
+    
+    # Keep only necessary columns: origin, dest, and direction
+    mapping_df = unique_pairs_df[["origin", "dest", "direction"]]
+    
+    # Step 4: Create (or replace) the flight_direction_map table in the database.
+    mapping_df.to_sql("flight_direction_map", conn, if_exists="replace", index=False)
 
-    df = df.merge(unique_pairs[['origin', 'dest', 'direction']], on=['origin', 'dest'], how='left')
-
-    # **Compute Wind Impact Automatically**
-    df["wind_impact"] = df.apply(
-        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
-        axis=1
-    )
-
-    return df
 
 def compute_wind_impact(flight_direction, wind_direction, wind_speed):
     """
