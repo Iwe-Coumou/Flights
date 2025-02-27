@@ -297,11 +297,19 @@ def analyze_wind_impact_vs_air_time(df):
                       color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
     
     return fig2, correlation  
-    
-def get_avg_departure_delay(db_name="flights_database.db"):
 
-    connection = sqlite3.connect(db_name)
-    cursor = connection.cursor()
+def plot_avg_departure_delay(conn):
+    """
+    Fetches the average departure delay per airline and returns a barplot.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    Figure: A barplot containing the bar chart of average departure delays per airline.
+    
+    """
+    cursor = conn.cursor()
 
     query = """
         SELECT airlines.name AS airline_name, AVG(flights.dep_delay) AS avg_dep_delay 
@@ -310,23 +318,25 @@ def get_avg_departure_delay(db_name="flights_database.db"):
         GROUP BY airlines.name
     """
     cursor.execute(query)
-    
+
     rows = cursor.fetchall()
     df_delays = pd.DataFrame(rows, columns=["Airline", "Average departure delay"])
 
-    connection.close()
+    fig = go.Figure(data=[go.Bar(
+        x=df_delays["Airline"],
+        y=df_delays["Average departure delay"],
+        marker_color='skyblue'
+    )])
 
-    return df_delays  
+    fig.update_layout(
+        title="Average Departure Delay per Airline",
+        xaxis_title="Airline",
+        yaxis_title="Average Departure Delay (minutes)",
+        xaxis_tickangle=-45,
+        template="plotly_white",
+        showlegend=False
+    )
 
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
 
-def plot_avg_departure_delay(df_delays):
-    """Plots the average departure delay per airline."""
-    plt.figure(figsize=(12, 6))
-    plt.bar(df_delays["Airline"], df_delays["Average departure delay"], color="skyblue")
-    plt.xlabel("Airline")
-    plt.ylabel("Average Departure Delay (minutes)")
-    plt.title("Average Departure Delay per Airline")
-    plt.xticks(rotation=45, ha="right")
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
-    plt.tight_layout()
-    plt.show()
+    return fig
