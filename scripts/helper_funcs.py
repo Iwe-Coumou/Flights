@@ -228,6 +228,15 @@ def add_wind_and_inner_product(df):
     return df
 
 def get_ny_origin_airports(conn):
+    """
+    Identifies all different airports in NYC and saves a dataframe.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with information about distinct NYC airports.
+    """
     cursor = conn.cursor()
 
     query = """
@@ -244,6 +253,19 @@ def get_ny_origin_airports(conn):
     return df_origins
 
 def amount_of_delayed_flights(conn, start_month, end_month, destination):
+    """
+    Calculates the amount of delayed flights to the chosen destination.
+
+    Parameters: 
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+    start_month: beginning of the range months.
+    end_month: ending of the range months.
+    destination: the destination.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with the amount of delayed flights.
+
+    """
     cursor = conn.cursor()
 
     min_delay = 0
