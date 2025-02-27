@@ -223,6 +223,9 @@ def analyze_wind_impact_vs_air_time(df):
     df = df.dropna(subset=["air_time", "wind_impact"])
     df["wind_type"] = np.where(df["wind_impact"] < 0, "Headwind", "Tailwind")
 
+    # Debug: Print air_time range to check for negative values
+    print("Debug: Min air_time =", df["air_time"].min(), "Max air_time =", df["air_time"].max())
+
     # Compute correlation (Pearson correlation coefficient)
     correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
 
