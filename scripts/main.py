@@ -9,9 +9,9 @@ e poi produce 6 subplots:
 import sqlite3 as sql
 import pandas as pd
 from constants import *
-from distance_calculations import file_opener, geodesic_distance_calculator
-from plots import multi_distance_distribution_gen
-from helper_funcs import create_planes_copy_with_speed
+from distance_calculations import *
+from plots import *
+from helper_funcs import *
 
 
 
@@ -56,6 +56,8 @@ def main():
     fig1.show()
     fig2.show()
     print(f"Correlation between wind impact and air time: {correlation:.3f}")
+
+    
 
     conn.close()
 

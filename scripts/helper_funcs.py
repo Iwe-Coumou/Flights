@@ -66,10 +66,12 @@ def compute_flight_direction_vectorized(origin_lat, origin_lon, dest_lat, dest_l
     """
     lat1, lon1, lat2, lon2 = map(np.radians, [origin_lat, origin_lon, dest_lat, dest_lon])
     delta_lon = lon2 - lon1
+
     x = np.sin(delta_lon) * np.cos(lat2)
-    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1)*np.cos(lat2)*np.cos(delta_lon)
-    bearing = (np.degrees(np.arctan2(x, y)) + 360) % 360
-    return float(bearing)
+    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
+
+    initial_bearing = np.arctan2(x, y)
+    return (np.degrees(initial_bearing) + 360) % 360  # Normalize to [0, 360]
 
 def compute_inner_product(flight_direction, wind_direction, wind_speed):
     """
@@ -147,13 +149,7 @@ def update_planes_speed(conn):
         )
     """)
     conn.commit()
-    
-# one create a new table and modify that the other one modify the original
 
-    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
-
-    initial_bearing = np.arctan2(x, y)
-    return (np.degrees(initial_bearing) + 360) % 360  # Normalize to [0, 360]
 
 def create_flight_dataframe(conn):
     """
