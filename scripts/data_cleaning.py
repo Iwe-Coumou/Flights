@@ -3,6 +3,8 @@ import timezonefinder
 import plotly.express as px
 import pandas as pd
 from constants import MISSING_AIRPORTS
+import pytz
+from datetime import datetime
 
 def delete_unused_airports(conn):
     """Deletes airports from the airports table that are not referenced as an origin or destination in the flights table."""
@@ -43,6 +45,21 @@ def add_missing_airports(conn):
     except sqlite3.Error as e:
         print(f"SQLite error: {e}")
 
+def get_utc_offset_in_hours(timezone_name):
+    """
+    Given a time zone name (e.g., 'Asia/Irkutsk'), compute the current UTC offset in hours.
+    """
+    try:
+        now = datetime.utcnow()
+        local_tz = pytz.timezone(timezone_name)
+        # Convert the current UTC time to the local time in the given timezone.
+        local_time = now.replace(tzinfo=pytz.utc).astimezone(local_tz)
+        offset_hours = local_time.utcoffset().total_seconds() / 3600
+        return offset_hours
+    except Exception as e:
+        print(f"Error computing offset for {timezone_name}: {e}")
+        return None
+
 def find_incorrect_timezones(conn):
     """Finds airports with incorrect timezones by comparing them against the actual timezone from latitude and longitude."""
     try:
@@ -65,15 +82,23 @@ def find_incorrect_timezones(conn):
         return []
 
 def correct_timezones(conn):
-    """Corrects incorrect timezones and updates the hour difference column in the airports table."""
+    """
+    Corrects incorrect timezones and updates the UTC offset (tz column) in the airports table.
+    For each airport with an incorrect time zone, it recalculates the offset based on the estimated time zone.
+    """
     incorrect_airports = find_incorrect_timezones(conn)
     if incorrect_airports:
         try:
             cursor = conn.cursor()
-            updates = [(airport[4], airport[5], airport[0]) for airport in incorrect_airports]
+            updates = []
+            for airport in incorrect_airports:
+                faa = airport[0]
+                estimated_tz = airport[4]  # new timezone from TimezoneFinder
+                new_offset = get_utc_offset_in_hours(estimated_tz)
+                updates.append((estimated_tz, new_offset, faa))
             cursor.executemany("UPDATE airports SET tzone = ?, tz = ? WHERE faa = ?", updates)
             conn.commit()
-            print(f"Updated {len(updates)} incorrect timezones and hour differences.")
+            print(f"Updated {len(updates)} incorrect timezones and their UTC offsets.")
         except sqlite3.Error as e:
             print(f"SQLite error: {e}")
     else:
@@ -334,11 +359,10 @@ def clean_database(conn):
 
     # handle the aiport data
     add_missing_airports(conn)
-    delete_unused_airports(conn)
+    #delete_unused_airports(conn)
     #plot_timezones(conn)
     correct_timezones(conn)
     #plot_timezones(conn)
-
 
     # handle the flights data
     remove_duplicate_flights(conn)
