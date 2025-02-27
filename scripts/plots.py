@@ -16,7 +16,6 @@ from constants import NYC_AIRPORTS
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-import scipy.stats as stats
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
@@ -273,53 +272,29 @@ def multi_distance_distribution_gen(*args):
 
 def analyze_wind_impact_vs_air_time(df):
     """
-    Analyzes the relationship between wind impact sign and air time using Plotly.
+    Analyzes the relationship between wind impact sign and air time using a violin plot,
+    categorizing wind as Headwind, Tailwind, or Crosswind.
     
     Parameters:
     df (pandas.DataFrame): DataFrame containing 'wind_impact' and 'air_time'.
     
     Returns:
-    tuple: (boxplot_figure, scatterplot_figure, correlation)
+    tuple: (violinplot_figure, correlation)
     """
     df = df.dropna(subset=["air_time", "wind_impact"])
-    df["wind_type"] = np.where(df["wind_impact"] < 0, "Headwind", "Tailwind")
+    
+    # Classify wind into Headwind, Tailwind, or Crosswind
+    df["wind_type"] = np.where(df["wind_impact"] > 5, "Tailwind", 
+                        np.where(df["wind_impact"] < -5, "Headwind", "Crosswind"))
 
     # Compute correlation (Pearson correlation coefficient)
     correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
 
-    # Boxplot to compare air time for Headwind vs Tailwind
-    fig1 = px.box(df, x="wind_type", y="air_time", color="wind_type",
-                  title="Air Time vs. Wind Impact Type",
-                  labels={"wind_type": "Wind Type", "air_time": "Air Time (minutes)"},
-                  color_discrete_map={"Headwind": "red", "Tailwind": "green"})
+    # Violin plot for a better distribution view
+    fig2 = px.violin(df, x="wind_type", y="air_time", box=False, points=False,
+                      title="Distribution of Air Time by Wind Type",
+                      color="wind_type", 
+                      color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
+    
+    return fig2, correlation
 
-    # Scatter plot (manually adding a trendline)
-    fig2 = go.Figure()
-
-    fig2.add_trace(go.Scatter(
-        x=df["wind_impact"], 
-        y=df["air_time"], 
-        mode='markers', 
-        marker=dict(opacity=0.5), 
-        name="Flights"
-    ))
-
-    # Compute trendline manually (simple linear regression)
-    x_values = df["wind_impact"]
-    y_values = df["air_time"]
-    slope, intercept = np.polyfit(x_values, y_values, 1)  # Fit a linear model
-    trend_x = np.linspace(min(x_values), max(x_values), 100)
-    trend_y = slope * trend_x + intercept
-
-    # Add the trendline
-    fig2.add_trace(go.Scatter(
-        x=trend_x, y=trend_y, mode='lines', name='Trendline', line=dict(color='blue')
-    ))
-
-    fig2.update_layout(
-        title="Air Time vs. Wind Impact",
-        xaxis_title="Wind Impact",
-        yaxis_title="Air Time (minutes)"
-    )
-
-    return fig1, fig2, correlation
