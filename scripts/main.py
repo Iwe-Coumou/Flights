@@ -46,11 +46,7 @@ def main():
 
     #print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
 
-    wind_df = create_flight_dataframe(conn)  # Get flights with precomputed directions
-
-    wind_df_filtered = wind_df.dropna()  # Remove rows with missing values
-
-    fig, correlation = analyze_wind_impact_vs_air_time(wind_df_filtered)
+    fig, correlation = plot_wind_impact_vs_air_time(conn)
 
     # Display figures
     fig.show()
