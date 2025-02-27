@@ -4,7 +4,7 @@ import plotly.express as px
 import pandas as pd
 from constants import MISSING_AIRPORTS
 import pytz
-from datetime import datetime
+from datetime import datetime, timezone
 
 def delete_unused_airports(conn):
     """Deletes airports from the airports table that are not referenced as an origin or destination in the flights table."""
@@ -47,13 +47,18 @@ def add_missing_airports(conn):
 
 def get_utc_offset_in_hours(timezone_name):
     """
-    Given a time zone name (e.g., 'Asia/Irkutsk'), compute the current UTC offset in hours.
+    Given a time zone name (e.g., 'Asia/Irkutsk'), compute the current UTC offset in hours
+    using the built-in 'timezone.utc' instead of datetime.utcnow().
     """
     try:
-        now = datetime.utcnow()
+        # Get the current time in UTC
+        now_utc = datetime.now(timezone.utc)
+
+        # Convert the UTC time to the local time for the given time zone
         local_tz = pytz.timezone(timezone_name)
-        # Convert the current UTC time to the local time in the given timezone.
-        local_time = now.replace(tzinfo=pytz.utc).astimezone(local_tz)
+        local_time = now_utc.astimezone(local_tz)
+
+        # Compute the offset in hours
         offset_hours = local_time.utcoffset().total_seconds() / 3600
         return offset_hours
     except Exception as e:
@@ -359,10 +364,10 @@ def clean_database(conn):
 
     # handle the aiport data
     add_missing_airports(conn)
-    #delete_unused_airports(conn)
-    #plot_timezones(conn)
+    delete_unused_airports(conn)
+    plot_timezones(conn)
     correct_timezones(conn)
-    #plot_timezones(conn)
+    plot_timezones(conn)
 
     # handle the flights data
     remove_duplicate_flights(conn)
