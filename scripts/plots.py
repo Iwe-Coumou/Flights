@@ -3,7 +3,6 @@ import plotly.express as px
 from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
 from constants import NYC_AIRPORTS
 import numpy as np
-import scipy.stats as stats
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
