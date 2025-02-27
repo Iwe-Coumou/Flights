@@ -1,9 +1,24 @@
-import sqlite3 as sql
+"""
+Entry point of the application.
+Connects to the actual DB, retrieves real distances for JFK/EWR/LGA,
+calculates geodesic distances from CSV (filtrando le rotte effettive),
+e poi produce 6 subplots:
+(1) JFK DB, (2) JFK CSV, (3) EWR DB, (4) EWR CSV, (5) LGA DB, (6) LGA CSV.
+"""
 
+import sqlite3 as sql
+import pandas as pd
+from constants import *
+from distance_calculations import *
 from plots import *
 from helper_funcs import *
-from test import *
-from constants import *
+
+
+
+
+
+
+
 
 def main():
     conn = sql.connect("data/flights_database.db")
@@ -40,6 +55,8 @@ def main():
     # Display figures
     fig.show()
     print(f"Correlation between wind impact and air time: {correlation:.3f}")
+
+    
 
     conn.close()
 
