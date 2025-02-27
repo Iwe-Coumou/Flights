@@ -270,33 +270,59 @@ def multi_distance_distribution_gen(*args):
 
     fig.show()
 
-def analyze_wind_impact_vs_air_time(df):
+def plot_wind_impact_vs_air_time(conn, impact_threshold=5):
     """
-    Analyzes the relationship between wind impact sign and air time using a violin plot,
-    categorizing wind as Headwind, Tailwind, or Crosswind.
+    Creates a violin plot to analyze the relationship between wind impact and air_time.
     
     Parameters:
-    df (pandas.DataFrame): DataFrame containing 'wind_impact' and 'air_time'.
+      conn (sqlite3.Connection): Connection to the SQLite database.
+      impact_threshold (float): Threshold (in knots) to classify wind as headwind/tailwind.
     
     Returns:
-    tuple: (violinplot_figure, correlation)
+      tuple: (violin plot figure, correlation value)
     """
+    cursor = conn.cursor()
+    # Check if the flight_direction_map table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flight_direction_map';")
+    if cursor.fetchone() is None:
+        print("flight_direction_map table not found. Creating it...")
+        create_flight_direction_mapping_table(conn)
+    
+    # Query flights joined with weather and flight_direction_map
+    query = """
+        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time,
+               w.wind_dir, w.wind_speed, fdm.direction
+        FROM flights f
+        LEFT JOIN weather w 
+            ON f.origin = w.origin AND f.time_hour = w.time_hour
+        LEFT JOIN flight_direction_map fdm 
+            ON f.origin = fdm.origin AND f.dest = fdm.dest;
+    """
+    df = pd.read_sql_query(query, conn)
+    
+    # Compute wind impact
+    df["wind_impact"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
+        axis=1
+    )
+    
+    # Remove rows with missing air_time or wind_impact
     df = df.dropna(subset=["air_time", "wind_impact"])
     
-    # Classify wind into Headwind, Tailwind, or Crosswind
-    df["wind_type"] = np.where(df["wind_impact"] > 5, "Tailwind", 
-                        np.where(df["wind_impact"] < -5, "Headwind", "Crosswind"))
-
-    # Compute correlation (Pearson correlation coefficient)
-    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
-
-    # Violin plot for a better distribution view
-    fig2 = px.violin(df, x="wind_type", y="air_time", box=False, points=False,
-                      title="Distribution of Air Time by Wind Type",
-                      color="wind_type", 
-                      color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
+    # Classify wind type based on the wind impact
+    df["wind_type"] = np.where(df["wind_impact"] > impact_threshold, "Tailwind",
+                         np.where(df["wind_impact"] < -impact_threshold, "Headwind", "Crosswind"))
     
-    return fig2, correlation  
+    # Compute Pearson correlation between wind_impact and air_time
+    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
+    
+    # Create a violin plot of air_time by wind type
+    fig = px.violin(df, x="wind_type", y="air_time", box=False, points=False,
+                    title="Distribution of Air Time by Wind Type",
+                    color="wind_type", 
+                    color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
+    
+    return fig, correlation  
 
 def plot_avg_departure_delay(conn):
     """
