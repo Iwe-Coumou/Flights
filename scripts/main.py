@@ -44,7 +44,7 @@ def main():
     # if distance_vs_arr_fig:
     #     distance_vs_arr_fig.show()
 
-    # print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
+    print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
 
     wind_df = create_flight_dataframe(conn)  # Get flights with precomputed directions
 
@@ -55,7 +55,6 @@ def main():
     # Display figures
     fig.show()
     print(f"Correlation between wind impact and air time: {correlation:.3f}")
-
     
 
     conn.close()
