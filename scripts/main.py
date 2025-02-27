@@ -13,20 +13,20 @@ def main():
 
     month, day = 5, 23
     
-    # for NYC_airport in NYC_AIRPORTS:
-    # # Plot flight destinations from a specific airport on a given date
-    #     fig, missing_airports = plot_destinations_on_day_from_NYC_airport(conn, month, day, NYC_airport)
-    #     if fig:
-    #         fig.show()
+    for NYC_airport in NYC_AIRPORTS:
+    # Plot flight destinations from a specific airport on a given date
+        fig, missing_airports = plot_destinations_on_day_from_NYC_airport(conn, month, day, NYC_airport)
+        if fig:
+            fig.show()
 
-    # # Plot both airports with and without flights
-    # fig = plot_airports_with_and_without_flights(conn)
-    # if fig:
-    #     fig.show()
+    # Plot both airports with and without flights
+    fig = plot_airports_with_and_without_flights(conn)
+    if fig:
+        fig.show()
 
-    # destination = "ATL"
-    # top_5 = top_5_manufacturers(conn, destination)
-    # print(top_5)
+    destination = "ATL"
+    top_5 = top_5_manufacturers(conn, destination)
+    print(top_5)
 
  
     distance_vs_arr_fig, correlation = plot_distance_vs_arr_delay(conn)   
