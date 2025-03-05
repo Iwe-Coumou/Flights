@@ -365,9 +365,9 @@ def clean_database(conn):
     # handle the aiport data
     add_missing_airports(conn)
     delete_unused_airports(conn)
-    plot_timezones(conn)
+    #plot_timezones(conn)
     correct_timezones(conn)
-    plot_timezones(conn)
+    #plot_timezones(conn)
 
     # handle the flights data
     remove_duplicate_flights(conn)
