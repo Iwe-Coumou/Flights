@@ -286,6 +286,15 @@ def fix_overnight_flights(conn: sqlite3.Connection):
     try:
         cursor.execute("BEGIN")
 
+        columns_to_update = ['dep_time', 'sched_dep_time', 'arr_time', 'sched_arr_time']
+
+        for col in columns_to_update:
+            cursor.execute(f"""
+                UPDATE flights
+                SET {col} = datetime(substr({col}, 1, 10), '+1 day') || ' 00:00:00'
+                WHERE substr({col}, 12, 8) = '24:00:00';
+            """)
+
         ## check overnight for scheduled departure and arrival day
         cursor.execute("""
                     UPDATE flights
@@ -299,7 +308,7 @@ def fix_overnight_flights(conn: sqlite3.Connection):
         ## compare actual departure to scheduled departure considering dep_delay
         cursor.execute("""
                     UPDATE flights
-                    SET sched_arr_time = datetime(dep_time, '+1 day'),
+                    SET sched_arr_time = datetime(sched_arr_time, '+1 day'),
                        arr_time = datetime(arr_time, '+1 day')
                     WHERE canceled IS 0
                     AND strftime('%s', sched_arr_time) < strftime('%s', sched_dep_time);
@@ -312,16 +321,17 @@ def fix_overnight_flights(conn: sqlite3.Connection):
                     SET arr_time = datetime(arr_time, '+1 day')
                     WHERE canceled IS 0
                     AND strftime('%s', arr_time) < strftime('%s', sched_arr_time)
-                    AND (strftime('%s', arrtime) - strftime('%s', sched_arr_time)) ;
-                """)
-        
-        cursor.execute("""
-                    UPDATE flights
-                    SET arr_time = datetime(arr_time, '-1 day')
-                    WHERE canceled IS 0
-                    AND 
+                    AND (arr_delay >= 0 OR arr_delay IS NULL) ;
                 """)
         arr_shifted = cursor.rowcount
+        
+        # cursor.execute("""
+        #             UPDATE flights
+        #             SET arr_time = datetime(arr_time, '-1 day')
+        #             WHERE canceled IS 0
+        #             AND 
+        #         """)
+        # arr_shifted = cursor.rowcount
 
         
         # # # ---------------------------------------------------------------------
