@@ -152,6 +152,8 @@ def add_canceled_column(conn):
             ALTER TABLE flights ADD COLUMN canceled INTEGER DEFAULT 0
         """
         )
+
+        
     except sqlite3.OperationalError:
         # The column already exists, so we can update it instead
         pass
@@ -164,61 +166,83 @@ def add_canceled_column(conn):
     """
     )
     conn.commit()
-    print("Canceled flights identified and marked.")
+    rows = cursor.rowcount
+    print(f"{rows} Canceled flights identified and marked.")
 
-def convert_flight_times(df: pd.DataFrame) -> pd.DataFrame:
+def convert_hhmm_to_full_datetime(conn: sqlite3.Connection):
     """
-    Converts scheduled and actual arrival/departure times to datetime format.
+    Converts HHMM integer columns [sched_dep_time, dep_time, sched_arr_time, arr_time] 
+    into proper 'YYYY-MM-DD HH:MM:SS' datetimes using the separate year, month, day columns.
+    
+    For example, if sched_dep_time = 700 (meaning 07:00) and the date columns 
+    are year=2013, month=1, day=15, this sets sched_dep_time to '2013-01-15 07:00:00'.
+    
+    Assumes:
+      - 'year', 'month', 'day' columns exist and contain valid integers.
+      - The HHMM columns are stored as integers (e.g. 700, 1345, etc.) or as short strings.
+      - If any of the HHMM columns is NULL, it is left unchanged.
+      - The conversion is only applied if the value is not already in datetime format 
+        (we assume that valid datetime strings have a length of 19 characters).
     
     Parameters:
-        flights (pd.DataFrame): The DataFrame containing flight data.
-        
-    Returns:
-        pd.DataFrame: The DataFrame with updated datetime columns.
+        conn (sqlite3.Connection): A connection to the SQLite database.
     """
-    datetime_columns = ['sched_dep_time', 'dep_time', 'sched_arr_time', 'arr_time']
-
-    df[datetime_columns] = df[datetime_columns].apply(pd.to_datetime)
-
-    return df
-
-def estimate_arr_delay_and_air_time(conn):
-    """Estimates missing arr_delay and air_time for flights that have arr_time but missing these values,
-    accounting for flights that cross midnight."""
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
+        cursor.execute("BEGIN")
         
-        # Update arr_delay using time conversion and handling midnight rollover
+        # Convert sched_dep_time only if not already in datetime format.
         cursor.execute("""
             UPDATE flights
-            SET arr_delay = CASE
-                WHEN (((arr_time / 100) * 60) + (arr_time % 100)) < (((sched_arr_time / 100) * 60) + (sched_arr_time % 100))
-                    THEN (((arr_time / 100) * 60) + (arr_time % 100)) + 1440 - (((sched_arr_time / 100) * 60) + (sched_arr_time % 100))
-                ELSE (((arr_time / 100) * 60) + (arr_time % 100)) - (((sched_arr_time / 100) * 60) + (sched_arr_time % 100))
-            END
-            WHERE arr_time IS NOT NULL 
-              AND sched_arr_time IS NOT NULL 
-              AND arr_delay IS NULL;
+            SET sched_dep_time = datetime(
+                year || '-' || printf('%02d', month) || '-' || printf('%02d', day) || ' ' ||
+                substr(printf('%04d', sched_dep_time), 1, 2) || ':' ||
+                substr(printf('%04d', sched_dep_time), 3, 2) || ':00'
+            )
+            WHERE sched_dep_time IS NOT NULL
+              AND length(sched_dep_time) < 19;
         """)
         
-        # Update air_time using time conversion and handling midnight rollover
+        # Convert dep_time only if not already in datetime format.
         cursor.execute("""
             UPDATE flights
-            SET air_time = CASE
-                WHEN (((arr_time / 100) * 60) + (arr_time % 100)) < (((dep_time / 100) * 60) + (dep_time % 100))
-                    THEN (((arr_time / 100) * 60) + (arr_time % 100)) + 1440 - (((dep_time / 100) * 60) + (dep_time % 100))
-                ELSE (((arr_time / 100) * 60) + (arr_time % 100)) - (((dep_time / 100) * 60) + (dep_time % 100))
-            END
-            WHERE arr_time IS NOT NULL 
-              AND dep_time IS NOT NULL 
-              AND air_time IS NULL;
+            SET dep_time = datetime(
+                year || '-' || printf('%02d', month) || '-' || printf('%02d', day) || ' ' ||
+                substr(printf('%04d', dep_time), 1, 2) || ':' ||
+                substr(printf('%04d', dep_time), 3, 2) || ':00'
+            )
+            WHERE dep_time IS NOT NULL
+              AND length(dep_time) < 19;
         """)
         
+        # Convert sched_arr_time only if not already in datetime format.
+        cursor.execute("""
+            UPDATE flights
+            SET sched_arr_time = datetime(
+                year || '-' || printf('%02d', month) || '-' || printf('%02d', day) || ' ' ||
+                substr(printf('%04d', sched_arr_time), 1, 2) || ':' ||
+                substr(printf('%04d', sched_arr_time), 3, 2) || ':00'
+            )
+            WHERE sched_arr_time IS NOT NULL
+              AND length(sched_arr_time) < 19;
+        """)
+        
+        # Convert arr_time only if not already in datetime format.
+        cursor.execute("""
+            UPDATE flights
+            SET arr_time = datetime(
+                year || '-' || printf('%02d', month) || '-' || printf('%02d', day) || ' ' ||
+                substr(printf('%04d', arr_time), 1, 2) || ':' ||
+                substr(printf('%04d', arr_time), 3, 2) || ':00'
+            )
+            WHERE arr_time IS NOT NULL
+              AND length(arr_time) < 19;
+        """)
+
         conn.commit()
-        num_of_changes = cursor.rowcount
-        print(f"Estimated missing arr_delay and air_time for {num_of_changes} flights using correct time conversion.")
-    except sqlite3.Error as e:
-        print(f"SQLite error: {e}")
+    except Exception as e:
+        conn.rollback()
+        raise e
 
 def delete_flights_without_arrival(conn):
     """Deletes flights that have a departure time but no recorded arrival time."""
@@ -235,144 +259,335 @@ def delete_flights_without_arrival(conn):
     except sqlite3.Error as e:
         print(f"SQLite error: {e}")
 
-def identify_unrealistic_air_times_dynamic(conn, min_speed=300, max_speed=600):
+def fix_overnight_flights(conn: sqlite3.Connection):
     """
-    Identifies flights with unrealistic air_time values based on the flight's distance.
+    Adjusts times for overnight flights in the 'flights' table.
     
-    The function assumes that:
-        - A flight should not fly faster than max_speed (mph)
-        - A flight should not fly slower than min_speed (mph)
+    Functionality:
+      1) Normalize any '24:00:00' timestamps in the following columns:
+         - dep_time
+         - sched_dep_time
+         - arr_time
+         - sched_arr_time
+         For each, if the stored time ends with '24:00:00', it converts it to the next day's '00:00:00'.
+      
+      2) Apply overnight logic:
+         (a) If dep_time is less than sched_dep_time and dep_delay is NULL or >= 0,
+             add one day to dep_time.
+         (b) If sched_arr_time is less than sched_dep_time, add one day to sched_arr_time.
+         (c) If arr_time is less than sched_arr_time, add one day to arr_time.
     
-    The expected flight time in minutes is calculated as:
-        - Lower bound: (distance * 60) / max_speed
-        - Upper bound: (distance * 60) / min_speed
-        
-    Flights with air_time below the lower bound or above the upper bound are flagged as unrealistic.
-    
-    Parameters:
-        conn (sqlite3.Connection): A connection to the SQLite database.
-        min_speed (int): The minimum expected average speed (mph). Defaults to 300.
-        max_speed (int): The maximum expected average speed (mph). Defaults to 600.
-        
-    Returns:
-        List of tuples: Each tuple is a row from the flights table with an unrealistic air_time.
+    Assumptions:
+      - Times are stored in a recognized datetime format (as text) except for the potential '24:00:00' issue.
+      - The table 'flights' has the columns: dep_time, sched_dep_time, arr_time, sched_arr_time, and dep_delay.
+      - There is no primary key; updates are applied directly.
     """
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
-        query = """
-            SELECT *
-            FROM flights
-            WHERE air_time < (distance * 60.0 / ?)
-               OR air_time > (distance * 60.0 / ?)
-        """
-        # The first parameter is used to compute the lower bound (fastest speed)
-        # The second parameter is for the upper bound (slowest speed)
-        cursor.execute(query, (max_speed, min_speed))
-        rows = cursor.fetchall()
-        print(f"Found {len(rows)} flights with unrealistic air_time values based on distance and speed assumptions.")
-        return rows
-    except sqlite3.Error as e:
-        print(f"SQLite error: {e}")
-        return []
-    
-def delete_unrealistic_air_times_dynamic(conn, min_speed=300, max_speed=600):
-    """
-    Deletes flights with unrealistic air_time values based on the flight's distance.
-    
-    The function assumes that flights should fly within a certain speed range:
-      - They should not be faster than max_speed (mph) (i.e., air_time should not be shorter than distance * 60 / max_speed)
-      - They should not be slower than min_speed (mph) (i.e., air_time should not be longer than distance * 60 / min_speed)
-    
-    Parameters:
-        conn (sqlite3.Connection): A connection to the SQLite database.
-        min_speed (int): The minimum expected average speed in mph (default is 300).
-        max_speed (int): The maximum expected average speed in mph (default is 600).
+        cursor.execute("BEGIN")
         
-    Returns:
-        int: The number of flights deleted.
-    """
-    try:
-        cursor = conn.cursor()
-        delete_query = """
-            DELETE FROM flights
-            WHERE air_time < (distance * 60.0 / ?)
-               OR air_time > (distance * 60.0 / ?)
-        """
-        cursor.execute(delete_query, (max_speed, min_speed))
-        conn.commit()
-        deleted_rows = cursor.rowcount
-        print(f"Deleted {deleted_rows} unrealistic flight records based on dynamic air_time bounds.")
-        return deleted_rows
-    except sqlite3.Error as e:
-        print(f"SQLite error: {e}")
-        return None
-
-def validate_calculated_air_time_against_schedule(conn, tolerance=45):
-    """
-    Validates the calculated air_time (derived from dep_time and arr_time) against the scheduled flight duration 
-    (sched_arr_time - sched_dep_time). Both times are converted from HHMM format to minutes, with an adjustment 
-    for flights that cross midnight.
-    
-    A flight is flagged as unrealistic if the absolute difference between the calculated air_time and 
-    the scheduled duration exceeds the given tolerance.
-    
-    The function prints:
-      - The total number of flights compared.
-      - The number of flights with a discrepancy greater than the tolerance.
-    
-    It returns nothing.
-    """
-    
-    def convert_hhmm(time_val):
-        """Converts a HHMM integer to minutes."""
-        hours = int(time_val // 100)
-        minutes = int(time_val % 100)
-        return hours * 60 + minutes
-    
-    try:
-        cursor = conn.cursor()
-        query = """
-            SELECT flight, sched_dep_time, sched_arr_time, dep_time, arr_time, air_time
-            FROM flights
-            WHERE sched_dep_time IS NOT NULL 
+        # # ---------------------------------------------------------------------
+        # # STEP 1: Normalize any '24:00:00' timestamps to the next day's '00:00:00'
+        # # ---------------------------------------------------------------------
+        # normalization_updates = {
+        #     "dep_time": "fixed_dep_time",
+        #     "sched_dep_time": "fixed_sched_dep_time",
+        #     "arr_time": "fixed_arr_time",
+        #     "sched_arr_time": "fixed_sched_arr_time"
+        # }
+        # norm_counts = {}
+        # for col, label in normalization_updates.items():
+        #     sql = f"""
+        #         UPDATE flights
+        #         SET {col} = datetime(
+        #             strftime('%Y-%m-%d', {col}, '+1 day') || ' 00:00:00'
+        #         )
+        #         WHERE {col} LIKE '% 24:00:00';
+        #     """
+        #     cursor.execute(sql)
+        #     norm_counts[label] = cursor.rowcount
+        
+        # ---------------------------------------------------------------------
+        # STEP 2: Apply overnight adjustments
+        # ---------------------------------------------------------------------
+        
+        # (a) Adjust dep_time: if dep_time < sched_dep_time and dep_delay is NULL or >= 0, add one day.
+        cursor.execute("""
+            UPDATE flights
+            SET dep_time = datetime(dep_time, '+1 day')
+            WHERE dep_time IS NOT NULL
+              AND sched_dep_time IS NOT NULL
+              AND strftime('%s', dep_time) < strftime('%s', sched_dep_time)
+              AND (dep_delay IS NULL OR dep_delay >= 0);
+        """)
+        dep_shifted = cursor.rowcount
+        
+        # (b) Adjust sched_arr_time: if sched_arr_time < sched_dep_time, add one day.
+        cursor.execute("""
+            UPDATE flights
+            SET sched_arr_time = datetime(sched_arr_time, '+1 day'),
+            arr_time = datetime(arr_time, '+1 day')
+            WHERE sched_arr_time IS NOT NULL
+              AND sched_dep_time IS NOT NULL
+              AND strftime('%s', sched_arr_time) < strftime('%s', sched_dep_time);
+        """)
+        sched_arr_shifted = cursor.rowcount
+        
+        # (c) Adjust arr_time: if arr_time < sched_arr_time, add one day.
+        cursor.execute("""
+            UPDATE flights
+            SET arr_time = datetime(arr_time, '+1 day')
+            WHERE arr_time IS NOT NULL
               AND sched_arr_time IS NOT NULL
-              AND dep_time IS NOT NULL
-              AND arr_time IS NOT NULL
-              AND air_time IS NOT NULL
-        """
-        cursor.execute(query)
-        rows = cursor.fetchall()
+              AND (arr_delay >= 0 OR arr_delay IS NULL)
+              AND strftime('%s', arr_time) < strftime('%s', sched_arr_time);
+        """)
+        arr_shifted = cursor.rowcount
         
-        total_flights = len(rows)
-        unrealistic_count = 0
+        conn.commit()
         
-        for row in rows:
-            flight_id, sched_dep_time, sched_arr_time, dep_time, arr_time, recorded_air_time = row
-            
-            # Convert scheduled times to minutes.
-            sched_dep = convert_hhmm(sched_dep_time)
-            sched_arr = convert_hhmm(sched_arr_time)
-            if sched_arr < sched_dep:
-                sched_arr += 1440  # Adjust for midnight rollover.
-            scheduled_duration = sched_arr - sched_dep
-            
-            # Convert actual times to minutes.
-            actual_dep = convert_hhmm(dep_time)
-            actual_arr = convert_hhmm(arr_time)
-            if actual_arr < actual_dep:
-                actual_arr += 1440  # Adjust for midnight rollover.
-            calculated_air_time = actual_arr - actual_dep
-            
-            # Check the absolute difference.
-            if abs(calculated_air_time - scheduled_duration) > tolerance:
-                unrealistic_count += 1
-        
-        print(f"Total flights compared: {total_flights}")
-        print(f"Flights with air_time discrepancy > {tolerance} minutes: {unrealistic_count}")
+        print("Fix Overnight Flights Complete (New Version).")
+        # print("Normalization of '24:00:00' -> next day '00:00:00':")
+        # for label, count in norm_counts.items():
+        #     print(f"  {label}: {count} rows updated")
+        print("Overnight adjustments:")
+        print(f"  dep_time shifted:       {dep_shifted} rows updated")
+        print(f"  sched_arr_time shifted: {sched_arr_shifted} rows updated")
+        print(f"  arr_time shifted:       {arr_shifted} rows updated")
     
-    except sqlite3.Error as e:
-        print(f"SQLite error: {e}")
+    except Exception as e:
+        conn.rollback()
+        raise e
 
+def update_missing_arr_delay_air_time(conn: sqlite3.Connection):
+    """
+    Updates rows that have an arr_time but are missing either arr_delay or air_time.
+    The values are computed as follows:
+      - arr_delay: difference in minutes between arr_time and sched_arr_time.
+                   If the computed difference is negative (indicating an overnight flight),
+                   add 86400 seconds (i.e. 24 hours) before dividing by 60.
+      - air_time:  difference in minutes between arr_time and dep_time.
+                   If the computed difference is negative, add 86400 seconds before dividing by 60.
+    
+    This function updates the values in-place and prints the number of rows updated.
+    
+    Assumptions:
+      - Time columns (sched_arr_time, arr_time, dep_time) are stored in a standard datetime format
+        ("YYYY-MM-DD HH:MM:SS").
+      - A negative computed difference indicates that the flight crossed midnight.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("BEGIN")
+        update_query = """
+            UPDATE flights
+            SET arr_delay = CASE 
+                              WHEN (strftime('%s', arr_time) - strftime('%s', sched_arr_time)) < 0
+                                THEN CAST((strftime('%s', arr_time) - strftime('%s', sched_arr_time) + 86400) / 60 AS INTEGER)
+                              ELSE CAST((strftime('%s', arr_time) - strftime('%s', sched_arr_time)) / 60 AS INTEGER)
+                            END,
+                air_time = CASE
+                              WHEN (strftime('%s', arr_time) - strftime('%s', dep_time)) < 0
+                                THEN CAST((strftime('%s', arr_time) - strftime('%s', dep_time) + 86400) / 60 AS INTEGER)
+                              ELSE CAST((strftime('%s', arr_time) - strftime('%s', dep_time)) / 60 AS INTEGER)
+                           END
+            WHERE arr_time IS NOT NULL 
+              AND (arr_delay IS NULL OR air_time IS NULL);
+        """
+        cursor.execute(update_query)
+        rows_updated = cursor.rowcount
+        
+        conn.commit()
+        print(f"Updated {rows_updated} rows for missing arr_delay/air_time with overnight correction.")
+    except Exception as e:
+        conn.rollback()
+        raise e
+
+def check_and_fix_flight_time_consistency(conn: sqlite3.Connection, fix_delays: bool = True):
+    """
+    For each flight in the 'flights' table:
+      - If fix_delays=True:
+          Corrects dep_delay to be the difference in minutes between dep_time and sched_dep_time.
+          Corrects arr_delay to be the difference in minutes between arr_time and sched_arr_time.
+        Otherwise, only checks the current values without modifying them.
+      
+      - Checks air_time vs (arr_time - dep_time) for consistency (without correcting air_time).
+    
+    After optionally making corrections for departure and arrival delays, prints a summary with:
+      - Total flights with valid departure data and how many have incorrect dep_delay.
+      - Total flights with valid arrival data and how many have incorrect arr_delay.
+      - Total flights with valid airtime data and how many have incorrect air_time.
+      - How many rows were corrected (if fix_delays=True).
+    
+    Parameters:
+      - conn (sqlite3.Connection): SQLite database connection
+      - fix_delays (bool): Whether to actually fix (update) the dep_delay and arr_delay columns.
+                          If False, the function only checks the current values.
+    
+    Assumptions:
+      - Time columns (sched_dep_time, dep_time, sched_arr_time, arr_time) are stored in a standard 
+        datetime format ("YYYY-MM-DD HH:MM:SS").
+      - Differences are computed in minutes.
+    """
+    cursor = conn.cursor()
+    
+    rows_dep_updated = 0
+    rows_arr_updated = 0
+    
+    if fix_delays:
+        try:
+            cursor.execute("BEGIN")
+            
+            # Update dep_delay
+            cursor.execute("""
+                UPDATE flights
+                SET dep_delay = CAST(
+                    (strftime('%s', dep_time) - strftime('%s', sched_dep_time)) / 60 AS INTEGER
+                )
+                WHERE dep_time IS NOT NULL 
+                  AND sched_dep_time IS NOT NULL
+                  AND dep_delay != CAST(
+                      (strftime('%s', dep_time) - strftime('%s', sched_dep_time)) / 60 AS INTEGER
+                  );
+            """)
+            rows_dep_updated = cursor.rowcount
+    
+            # Update arr_delay
+            cursor.execute("""
+                UPDATE flights
+                SET arr_delay = CAST(
+                    (strftime('%s', arr_time) - strftime('%s', sched_arr_time)) / 60 AS INTEGER
+                )
+                WHERE arr_time IS NOT NULL 
+                  AND sched_arr_time IS NOT NULL
+                  AND arr_delay != CAST(
+                      (strftime('%s', arr_time) - strftime('%s', sched_arr_time)) / 60 AS INTEGER
+                  );
+            """)
+            rows_arr_updated = cursor.rowcount
+            
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+    # Now perform the checks (whether or not we fixed delays).
+    
+    # Departure delay check
+    cursor.execute("""
+        SELECT COUNT(*) FROM flights
+        WHERE dep_time IS NOT NULL AND sched_dep_time IS NOT NULL;
+    """)
+    total_dep = cursor.fetchone()[0]
+    
+    cursor.execute("""
+        SELECT COUNT(*) FROM flights
+        WHERE dep_time IS NOT NULL AND sched_dep_time IS NOT NULL
+          AND dep_delay != CAST(
+              (strftime('%s', dep_time) - strftime('%s', sched_dep_time)) / 60 AS INTEGER
+          );
+    """)
+    dep_incorrect = cursor.fetchone()[0]
+    
+    # Arrival delay check
+    cursor.execute("""
+        SELECT COUNT(*) FROM flights
+        WHERE arr_time IS NOT NULL AND sched_arr_time IS NOT NULL;
+    """)
+    total_arr = cursor.fetchone()[0]
+    
+    cursor.execute("""
+        SELECT COUNT(*) FROM flights
+        WHERE arr_time IS NOT NULL AND sched_arr_time IS NOT NULL
+          AND arr_delay != CAST(
+              (strftime('%s', arr_time) - strftime('%s', sched_arr_time)) / 60 AS INTEGER
+          );
+    """)
+    arr_incorrect = cursor.fetchone()[0]
+    
+    # Airtime check
+    cursor.execute("""
+        SELECT COUNT(*) FROM flights
+        WHERE dep_time IS NOT NULL AND arr_time IS NOT NULL;
+    """)
+    total_air = cursor.fetchone()[0]
+    
+    cursor.execute("""
+        SELECT COUNT(*) FROM flights
+        WHERE dep_time IS NOT NULL AND arr_time IS NOT NULL
+          AND air_time != CAST(
+              (strftime('%s', arr_time) - strftime('%s', dep_time)) / 60 AS INTEGER
+          );
+    """)
+    air_incorrect = cursor.fetchone()[0]
+    
+    # Print the summary
+    print("Flight Time Consistency Summary:")
+    print(f"  Total flights with valid dep data: {total_dep}")
+    print(f"  Flights still incorrect for dep_delay: {dep_incorrect}")
+    print(f"  Total flights with valid arr data: {total_arr}")
+    print(f"  Flights still incorrect for arr_delay: {arr_incorrect}")
+    print(f"  Total flights with valid airtime data: {total_air}")
+    print(f"  Flights with incorrect air_time: {air_incorrect}")
+    
+    if fix_delays:
+        print("\nCorrections Applied:")
+        print(f"  Flights with corrected dep_delay: {rows_dep_updated}")
+        print(f"  Flights with corrected arr_delay: {rows_arr_updated}")
+    else:
+        print("\nNo corrections applied (fix_delays=False).")
+
+def count_large_airtime_discrepancies(conn: sqlite3.Connection, threshold=45):
+    """
+    Compares the scheduled flight duration with the stored airtime for each flight and
+    counts how many flights have an absolute difference greater than the given threshold (in minutes).
+    
+    The scheduled duration is computed as:
+      - If sched_arr_time is earlier than sched_dep_time (i.e. overnight flight),
+        then scheduled duration = (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time) + 86400) / 60.
+      - Otherwise, scheduled duration = (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time)) / 60.
+    
+    Only flights where sched_dep_time, sched_arr_time, and air_time are not NULL are considered.
+    
+    Parameters:
+      conn (sqlite3.Connection): A connection to the SQLite database.
+      threshold (int): The threshold (in minutes) for the absolute difference between
+                       scheduled duration and stored airtime. Defaults to 45 minutes.
+    
+    Prints the count of flights that exceed this threshold.
+    """
+    cursor = conn.cursor()
+    query = f"""
+        SELECT COUNT(*) 
+        FROM flights
+        WHERE sched_dep_time IS NOT NULL 
+          AND sched_arr_time IS NOT NULL
+          AND air_time IS NOT NULL
+          AND ABS(
+              (CASE 
+                  WHEN (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time)) < 0
+                  THEN (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time) + 86400) / 60.0
+                  ELSE (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time)) / 60.0
+               END) - air_time
+          ) > {threshold};
+    """
+    cursor.execute(query)
+    count = cursor.fetchone()[0]
+    print(f"Number of flights where the absolute difference between scheduled duration and airtime exceeds {threshold} minutes: {count}")
+
+def check_and_update_flight_times(conn: sqlite3.Connection):
+    """
+    High-level function that:
+      1) Fixes overnight flights by adding +1 day if:
+         - dep_time < sched_dep_time (actual departure crosses midnight)
+         - arr_time < dep_time (arrival crosses midnight)
+         - sched_arr_time < sched_dep_time (scheduled arrival crosses midnight)
+      2) Updates missing arr_delay/air_time values.
+      3) Checks and prints a consistency summary.
+    """
+    fix_overnight_flights(conn)
+    update_missing_arr_delay_air_time(conn)
+    check_and_fix_flight_time_consistency(conn, True)
 
 def clean_database(conn):
     """Calls all data cleaning functions."""
@@ -388,16 +603,15 @@ def clean_database(conn):
     # handle the flights data
     remove_duplicate_flights(conn)
     add_canceled_column(conn)
-    estimate_arr_delay_and_air_time(conn)
+    convert_hhmm_to_full_datetime(conn)
+    check_and_update_flight_times(conn)
     delete_flights_without_arrival(conn)
-    identify_unrealistic_air_times_dynamic(conn)
-    validate_calculated_air_time_against_schedule(conn)
-    #delete_unrealistic_air_times_dynamic(conn)
+    count_large_airtime_discrepancies(conn)
 
     print("Database cleaning completed.")
 
 if __name__ == "__main__":
-    db_path = "data/flights_database.db"  # Change this to the actual database path
+    db_path = "data/flights_database.db"
     conn = sqlite3.connect(db_path)
     clean_database(conn)
     conn.close()
