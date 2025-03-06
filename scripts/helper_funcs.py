@@ -99,6 +99,57 @@ def get_airports_locations(conn, airport_list=None):
 
 
 
+def create_planes_copy_with_speed(conn, recalc_speed=False):
+    c = conn.cursor()
+    c.execute("DROP TABLE IF EXISTS planes_copy")
+    c.execute("CREATE TABLE planes_copy AS SELECT * FROM planes")
+    cols = [x[1] for x in c.execute("PRAGMA table_info(planes_copy)")]
+    if "speed" not in cols:
+        c.execute("ALTER TABLE planes_copy ADD COLUMN speed REAL")
+    elif recalc_speed:
+        c.execute("UPDATE planes_copy SET speed = NULL")
+    c.execute("""
+        UPDATE planes_copy
+        SET speed = (
+            SELECT AVG(distance / (air_time / 60.0))
+            FROM flights
+            WHERE flights.tailnum = planes_copy.tailnum
+              AND air_time IS NOT NULL
+              AND air_time > 0
+              AND distance IS NOT NULL
+              AND distance > 0
+        )
+        WHERE EXISTS (
+            SELECT 1
+            FROM flights
+            WHERE flights.tailnum = planes_copy.tailnum
+              AND air_time IS NOT NULL
+              AND air_time > 0
+              AND distance IS NOT NULL
+              AND distance > 0
+        );
+    """)
+    conn.commit()
+
+    
+def update_planes_speed(conn):
+    c = conn.cursor()
+    cols = [x[1] for x in c.execute("PRAGMA table_info(planes)")]
+    if "speed" not in cols:
+        c.execute("ALTER TABLE planes ADD COLUMN speed REAL")
+    else:
+        c.execute("UPDATE planes SET speed = NULL")
+    c.execute("""
+        UPDATE planes
+        SET speed = (
+            SELECT AVG(distance / (air_time / 60.0))
+            FROM flights
+            WHERE flights.tailnum = planes.tailnum
+              AND air_time IS NOT NULL
+              AND air_time > 0
+        )
+    """)
+    conn.commit()
 
 def create_flight_direction_mapping_table(conn):
     """
@@ -216,62 +267,3 @@ def amount_of_delayed_flights(conn, start_month, end_month, destination):
     amount_of_delayed_flights = cursor.fetchone()[0]
 
     return amount_of_delayed_flights
-
-
-
-def create_col_with_speed(conn):
-    c = conn.cursor()
-    
-    # Controlla se la colonna "speed" esiste
-    cols = [x[1] for x in c.execute("PRAGMA table_info(planes)")]
-    if "speed" not in cols:
-        c.execute("ALTER TABLE planes ADD COLUMN speed REAL")
-
-    # Aggiorna la velocità solo per gli aerei con voli validi
-    c.execute("""
-        UPDATE planes
-        SET speed = (
-            SELECT AVG(distance / (air_time / 60.0))
-            FROM flights
-            WHERE flights.tailnum = planes.tailnum
-              AND air_time > 0
-              AND distance > 0
-        )
-    """)
-    
-    conn.commit()
-    
-    
-def create_col_local_arrival_time(conn):
-    """
-    Adds 'local_arrival_time' column to flights table and updates it by 
-    converting arrival time to the destination airport's local time.
-    """
-    c = conn.cursor()
-    
-    # Controlla se la colonna esiste già
-    cols = [x[1] for x in c.execute("PRAGMA table_info(flights)")]
-    if "local_arrival_time" not in cols:
-        c.execute("ALTER TABLE flights ADD COLUMN local_arrival_time TEXT")
-
-    # Aggiorna l'orario di arrivo locale con un singolo UPDATE SQL
-    c.execute("""
-        UPDATE flights
-        SET local_arrival_time = (
-            SELECT printf('%02d:%02d%s',
-                ((arr_time / 100) + (a_dest.tz - a_origin.tz)) % 24,  -- Ore corrette
-                arr_time % 100,  -- Minuti invariati
-                CASE 
-                    WHEN ((arr_time / 100) + (a_dest.tz - a_origin.tz)) >= 24 
-                    THEN ' +1d' ELSE '' 
-                END
-            )
-            FROM airports a_origin
-            JOIN airports a_dest ON flights.dest = a_dest.faa
-            WHERE flights.origin = a_origin.faa
-        )
-        WHERE arr_time IS NOT NULL;
-    """)
-
-    conn.commit()
-    print("Updated 'local_arrival_time' column in flights table.")
