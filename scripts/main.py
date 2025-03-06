@@ -12,17 +12,16 @@ from constants import *
 from distance_calculations import *
 from plots import *
 from helper_funcs import *
-
-
-
-
-
-
+from test import *
+from data_cleaning import clean_database
 
 
 def main():
     conn = sql.connect("data/flights_database.db")
-    month, day = 5, 23,
+
+    clean_database(conn)
+
+    # month, day = 5, 23
     
     # for NYC_airport in NYC_AIRPORTS:
     # # Plot flight destinations from a specific airport on a given date

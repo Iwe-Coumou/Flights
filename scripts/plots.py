@@ -313,7 +313,7 @@ def plot_wind_impact_vs_air_time(conn, impact_threshold=5):
     df["wind_type"] = np.where(df["wind_impact"] > impact_threshold, "Tailwind",
                          np.where(df["wind_impact"] < -impact_threshold, "Headwind", "Crosswind"))
     
-    # Compute Pearson correlation between wind_impact and air_time
+
     correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
     
     # Create a violin plot of air_time by wind type
