@@ -1,57 +1,63 @@
+# plots.py
+
+"""
+Module gathering all plotting functions for this project.
+Includes:
+- Plot of flights departing from NYC airports on a given day
+- Plot of airports that do/do not receive flights
+- Plot distance vs arrival delay
+- Multi-distance distribution histogram plotting
+"""
+
 import plotly.graph_objects as go
 import plotly.express as px
-from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
+from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay, create_flight_direction_mapping_table, compute_wind_impact
 from constants import NYC_AIRPORTS
+from plotly.subplots import make_subplots
+import pandas as pd
 import numpy as np
-import scipy.stats as stats
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
-    Generates a flight path visualization for all flights departing from a given airport on a specific day.
-    
-    Parameters:
-        conn (sqlite3.Connection): SQLite database connection.
-        month (int): Month of the flight (1-12).
-        day (int): Day of the flight (1-31).
-        NYC_airport (str): The NYC airport FAA code (e.g., 'JFK', 'LGA', 'EWR').
-
-    Returns:
-        go.Figure: A Plotly figure object containing the flight visualization.
-        list: A list of missing airports that were not found in the database.
+    Generates a flight path visualization for all flights departing from a given NYC airport 
+    on a specific day (month/day). 
+    Returns (fig, missing_airports).
     """
     if NYC_airport not in NYC_AIRPORTS:
-        print(f"Error: Home base airport {NYC_airport} not in New York City.")
+        print(f"Error: '{NYC_airport}' is not recognized as a NYC airport.")
         return None, []
 
+    # Retrieve destination codes from the DB
     FAA_codes = get_flight_destinations_from_airport_on_day(conn, month, day, NYC_airport)
-    
     cursor = conn.cursor()
     cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (NYC_airport,))
     home_base_data = cursor.fetchone()
+
     if not home_base_data:
-        print(f"Error: Home base airport {NYC_airport} not found in the database.")
+        print(f"Error: Home base '{NYC_airport}' not found in the database.")
         return None, []
-    
+
     home_base_name, home_base_lat, home_base_lon = home_base_data
     lons, lats, dest_lons, dest_lats, dest_names = [], [], [], [], []
     missing_airports = []
     fig = go.Figure()
-    
-    for FAA_code in FAA_codes:
-        cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (FAA_code,))
+
+    # For each destination, gather data and plot lines
+    for code in FAA_codes:
+        cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (code,))
         airport_data = cursor.fetchone()
         if not airport_data:
-            missing_airports.append(FAA_code)
+            missing_airports.append(code)
             continue
-        
         airport_name, airport_lat, airport_lon = airport_data
         dest_lons.append(airport_lon)
         dest_lats.append(airport_lat)
-        dest_names.append(f"{airport_name} ({FAA_code})")
-        
+        dest_names.append(f"{airport_name} ({code})")
+
         lons.extend([home_base_lon, airport_lon, None])
         lats.extend([home_base_lat, airport_lat, None])
-    
+
+    # Flight paths
     fig.add_trace(go.Scattergeo(
         lon=lons,
         lat=lats,
@@ -60,7 +66,8 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
         opacity=0.7,
         showlegend=False
     ))
-    
+
+    # Destination markers
     fig.add_trace(go.Scattergeo(
         lon=dest_lons,
         lat=dest_lats,
@@ -71,6 +78,7 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
         marker=dict(size=6, color='red', opacity=0.85)
     ))
 
+    # Home base marker
     fig.add_trace(go.Scattergeo(
         lon=[home_base_lon],
         lat=[home_base_lat],
@@ -86,10 +94,9 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
         geo=dict(
             scope="world",
             showland=True,
-            landcolor="rgb(243, 243, 243)",
+            landcolor="rgb(243, 243, 243)"
         )
     )
-    
     return fig, missing_airports
 
 import plotly.graph_objects as go
@@ -126,17 +133,17 @@ def plot_airports_with_and_without_flights(conn):
     """
     cursor.execute(query_with_flights)
     active_airports = cursor.fetchall()
-    
+
     fig = go.Figure()
-    
-    # Add airports with no flights (red)
+
+    # Airports with no flights (red)
     if missing_airports:
         no_flight_lons, no_flight_lats, no_flight_names = [], [], []
         for faa, name, lat, lon in missing_airports:
             no_flight_lons.append(lon)
             no_flight_lats.append(lat)
             no_flight_names.append(f"{name} ({faa})")
-        
+
         fig.add_trace(go.Scattergeo(
             lon=no_flight_lons,
             lat=no_flight_lats,
@@ -156,7 +163,7 @@ def plot_airports_with_and_without_flights(conn):
             flight_lons.append(lon)
             flight_lats.append(lat)
             flight_names.append(f"{name} ({faa})")
-        
+
         fig.add_trace(go.Scattergeo(
             lon=flight_lons,
             lat=flight_lats,
@@ -177,25 +184,18 @@ def plot_airports_with_and_without_flights(conn):
             landcolor="rgb(243, 243, 243)"
         )
     )
-    
     return fig
 
 
 def plot_distance_vs_arr_delay(conn):
     """
-    Creates a scatterplot of flight distance vs. arrival delay and calculates the correlation.
-
-    Parameters:
-    distance_vs_arr_df (pandas.DataFrame): DataFrame with 'distance' and 'arr_delay' columns.
-
-    Returns:
-    tuple: (Plotly figure, correlation coefficient)
+    Creates a scatter plot of flight distance vs. arrival delay, 
+    and calculates the correlation between these two variables.
+    Returns (figure, correlation).
     """
-    # Calculate correlation coefficient
     distance_vs_arr_df = get_distance_vs_arr_delay(conn)
     correlation = distance_vs_arr_df["distance"].corr(distance_vs_arr_df["arr_delay"])
 
-    # Create scatter plot
     fig = px.scatter(
         distance_vs_arr_df,
         x="distance",
@@ -205,63 +205,164 @@ def plot_distance_vs_arr_delay(conn):
         opacity=0.5
     )
 
-    # Add reference line at 0 delay
+    # Add a reference line at 0 delay
     fig.add_hline(y=0, line_dash="dash", line_color="red")
 
     return fig, correlation
 
-def analyze_wind_impact_vs_air_time(df):
+def multi_distance_distribution_gen(*args):
     """
-    Analyzes the relationship between wind impact sign and air time using Plotly.
-    
-    Parameters:
-    df (pandas.DataFrame): DataFrame containing 'wind_impact' and 'air_time'.
-    
-    Returns:
-    tuple: (boxplot_figure, scatterplot_figure, correlation)
+    Creates multiple histogram subplots in a single figure.
+    Each item in *args should be a tuple: (df, title, column_name).
+
+    Example usage:
+    multi_distance_distribution_gen(
+        (df_1, "Title 1", "distance"),
+        (df_2, "Title 2", "distance"),
+        ...
+    )
     """
-    df = df.dropna(subset=["air_time", "wind_impact"])
-    df["wind_type"] = np.where(df["wind_impact"] < 0, "Headwind", "Tailwind")
+    num_graphs = len(args)
+    if num_graphs == 0:
+        raise ValueError("No dataframes provided to plot.")
 
-    # Debug: Print air_time range to check for negative values
-    print("Debug: Min air_time =", df["air_time"].min(), "Max air_time =", df["air_time"].max())
+    rows = (num_graphs + 1) // 2  # 2 subplots per row
+    cols = 2
 
-    # Compute correlation (Pearson correlation coefficient)
-    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
-
-    # Boxplot to compare air time for Headwind vs Tailwind
-    fig1 = px.box(df, x="wind_type", y="air_time", color="wind_type",
-                  title="Air Time vs. Wind Impact Type",
-                  labels={"wind_type": "Wind Type", "air_time": "Air Time (minutes)"},
-                  color_discrete_map={"Headwind": "red", "Tailwind": "green"})
-
-    # Scatter plot (manually adding a trendline)
-    fig2 = go.Figure()
-
-    fig2.add_trace(go.Scatter(
-        x=df["wind_impact"], 
-        y=df["air_time"], 
-        mode='markers', 
-        marker=dict(opacity=0.5), 
-        name="Flights"
-    ))
-
-    # Compute trendline manually (simple linear regression)
-    x_values = df["wind_impact"]
-    y_values = df["air_time"]
-    slope, intercept = np.polyfit(x_values, y_values, 1)  # Fit a linear model
-    trend_x = np.linspace(min(x_values), max(x_values), 100)
-    trend_y = slope * trend_x + intercept
-
-    # Add the trendline
-    fig2.add_trace(go.Scatter(
-        x=trend_x, y=trend_y, mode='lines', name='Trendline', line=dict(color='blue')
-    ))
-
-    fig2.update_layout(
-        title="Air Time vs. Wind Impact",
-        xaxis_title="Wind Impact",
-        yaxis_title="Air Time (minutes)"
+    fig = make_subplots(
+        rows=rows, cols=cols,
+        subplot_titles=[title for _, title, _ in args],
+        shared_xaxes=True,
+        shared_yaxes=True
     )
 
-    return fig1, fig2, correlation
+    colors = ["blue", "green", "red", "purple", "orange", "cyan", "magenta", "yellow"]
+    color_index = 0
+
+    for i, (df, title, column) in enumerate(args):
+        if column not in df.columns:
+            raise ValueError(f"The column '{column}' does not exist in '{title}' DataFrame")
+
+        r = (i // 2) + 1
+        c = (i % 2) + 1
+
+        fig.add_trace(
+            go.Histogram(
+                x=df[column],
+                name=title,
+                opacity=0.75,
+                marker_color=colors[color_index % len(colors)],
+                nbinsx=30
+            ),
+            row=r,
+            col=c
+        )
+
+        color_index += 1
+
+    fig.update_layout(
+        title="Comparison of Distance Distributions",
+        bargap=0.1,
+        showlegend=False,
+        width=900,
+        height=rows * 400
+    )
+
+    fig.show()
+
+def plot_wind_impact_vs_air_time(conn, impact_threshold=5):
+    """
+    Creates a violin plot to analyze the relationship between wind impact and air_time.
+    
+    Parameters:
+      conn (sqlite3.Connection): Connection to the SQLite database.
+      impact_threshold (float): Threshold (in knots) to classify wind as headwind/tailwind.
+    
+    Returns:
+      tuple: (violin plot figure, correlation value)
+    """
+    cursor = conn.cursor()
+    # Check if the flight_direction_map table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flight_direction_map';")
+    if cursor.fetchone() is None:
+        print("flight_direction_map table not found. Creating it...")
+        create_flight_direction_mapping_table(conn)
+    
+    # Query flights joined with weather and flight_direction_map
+    query = """
+        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time,
+               w.wind_dir, w.wind_speed, fdm.direction
+        FROM flights f
+        LEFT JOIN weather w 
+            ON f.origin = w.origin AND f.time_hour = w.time_hour
+        LEFT JOIN flight_direction_map fdm 
+            ON f.origin = fdm.origin AND f.dest = fdm.dest;
+    """
+    df = pd.read_sql_query(query, conn)
+    
+    # Compute wind impact
+    df["wind_impact"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
+        axis=1
+    )
+    
+    # Remove rows with missing air_time or wind_impact
+    df = df.dropna(subset=["air_time", "wind_impact"])
+    
+    # Classify wind type based on the wind impact
+    df["wind_type"] = np.where(df["wind_impact"] > impact_threshold, "Tailwind",
+                         np.where(df["wind_impact"] < -impact_threshold, "Headwind", "Crosswind"))
+    
+
+    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
+    
+    # Create a violin plot of air_time by wind type
+    fig = px.violin(df, x="wind_type", y="air_time", box=False, points=False,
+                    title="Distribution of Air Time by Wind Type",
+                    color="wind_type", 
+                    color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
+    
+    return fig, correlation  
+
+def plot_avg_departure_delay(conn):
+    """
+    Fetches the average departure delay per airline and returns a barplot.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    Figure: A barplot containing the bar chart of average departure delays per airline.
+    
+    """
+    cursor = conn.cursor()
+
+    query = """
+        SELECT airlines.name AS airline_name, AVG(flights.dep_delay) AS avg_dep_delay 
+        FROM flights 
+        JOIN airlines ON flights.carrier = airlines.carrier 
+        GROUP BY airlines.name
+    """
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+    df_delays = pd.DataFrame(rows, columns=["Airline", "Average departure delay"])
+
+    fig = go.Figure(data=[go.Bar(
+        x=df_delays["Airline"],
+        y=df_delays["Average departure delay"],
+        marker_color='skyblue'
+    )])
+
+    fig.update_layout(
+        title="Average Departure Delay per Airline",
+        xaxis_title="Airline",
+        yaxis_title="Average Departure Delay (minutes)",
+        xaxis_tickangle=-45,
+        template="plotly_white",
+        showlegend=False
+    )
+
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+
+    return fig
