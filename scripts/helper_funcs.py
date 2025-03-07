@@ -242,36 +242,56 @@ def create_col_with_speed(conn):
     conn.commit()
     
     
-def create_col_local_arrival_time(conn):
+def create_col_local_arrival_time(conn, recalculate=False):
     """
-    Adds 'local_arrival_time' column to flights table and updates it by 
+    Updates the 'local_arrival_time' column in the flights table, 
     converting arrival time to the destination airport's local time.
+
+    Parameters:
+    recalculate (bool): If True, recalculates all local arrival times. 
+                        If False, only calculates where 'local_arrival_time' is NULL.
     """
     c = conn.cursor()
     
-    # Controlla se la colonna esiste già
+    # Check if the column already exists
     cols = [x[1] for x in c.execute("PRAGMA table_info(flights)")]
     if "local_arrival_time" not in cols:
         c.execute("ALTER TABLE flights ADD COLUMN local_arrival_time TEXT")
 
-    # Aggiorna l'orario di arrivo locale con un singolo UPDATE SQL
-    c.execute("""
+    # Determine the condition for updating local arrival time
+    condition = "WHERE arr_time IS NOT NULL"
+    if not recalculate:
+        condition += " AND (local_arrival_time IS NULL OR local_arrival_time = '')"
+
+    # Update local arrival time based on origin and destination timezones
+    c.execute(f"""
         UPDATE flights
         SET local_arrival_time = (
-            SELECT printf('%02d:%02d%s',
-                ((arr_time / 100) + (a_dest.tz - a_origin.tz)) % 24,  -- Ore corrette
-                arr_time % 100,  -- Minuti invariati
-                CASE 
-                    WHEN ((arr_time / 100) + (a_dest.tz - a_origin.tz)) >= 24 
-                    THEN ' +1d' ELSE '' 
-                END
+            SELECT strftime(
+                '%Y-%m-%d %H:%M', 
+                datetime(flights.arr_time, 
+                    CASE 
+                        WHEN CAST(a_dest.tz AS INTEGER) != CAST(a_origin.tz AS INTEGER) 
+                        THEN (CAST(a_dest.tz AS INTEGER) - CAST(a_origin.tz AS INTEGER)) || ' hours' 
+                        ELSE '0 hours'  -- Se il fuso è lo stesso, non modificare l'ora
+                    END
+                )
             )
             FROM airports a_origin
             JOIN airports a_dest ON flights.dest = a_dest.faa
             WHERE flights.origin = a_origin.faa
+            AND flights.rowid = flights.rowid
         )
-        WHERE arr_time IS NOT NULL;
+        {condition};
     """)
 
     conn.commit()
     print("Updated 'local_arrival_time' column in flights table.")
+
+
+
+    
+    
+db_path = "data/flights_database.db"
+conn = sqlite3.connect(db_path)
+create_col_local_arrival_time(conn, recalculate=True)
