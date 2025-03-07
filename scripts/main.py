@@ -45,14 +45,19 @@ def main():
 
     print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
 
-    fig, correlation = plot_wind_impact_vs_air_time(conn)
+    # fig, correlation = plot_wind_impact_vs_air_time(conn)
 
-    # Display figures
-    fig.show()
-    print(f"Correlation between wind impact and air time: {correlation:.3f}")
-   
+    # # Display figures
+    # fig.show()
+    # print(f"Correlation between wind impact and air time: {correlation:.3f}")
+    #create_col_with_speed(conn)
 
+    print("aaaaa")
+    create_col_local_arrival_time(conn)
     conn.close()
 
+    print("aaaaa")
+    
+    
 if __name__ == "__main__":
     main()

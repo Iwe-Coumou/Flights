@@ -12,7 +12,6 @@ MISSING_AIRPORTS = [
     ("BQN", "Rafael Hernández International", 18.4949, -67.1294, 237, -4, "N", "America/Puerto_Rico"),
     ("PSE", "Mercedita International", 18.0083, -66.5630, 10, -4, "N", "America/Puerto_Rico"),
 ]
-
 # Distance-related constants
 ERROR_MARGIN_KM = 2.0
 MILES_TO_KM = 1.60934
