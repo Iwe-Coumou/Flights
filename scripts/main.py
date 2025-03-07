@@ -39,11 +39,11 @@ def main():
     # print(top_5)
 
  
-    # distance_vs_arr_fig, correlation = plot_distance_vs_arr_delay(conn)   
-    # if distance_vs_arr_fig:
-    #     distance_vs_arr_fig.show()
+    distance_vs_arr_fig, correlation = plot_distance_vs_arr_delay(conn)   
+    if distance_vs_arr_fig:
+        distance_vs_arr_fig.show()
 
-    #print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
+    print(f"Correlation coefficient between distance and arrival time delay: {correlation:.3f}")
 
     # fig, correlation = plot_wind_impact_vs_air_time(conn)
 
