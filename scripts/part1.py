@@ -183,7 +183,9 @@ def get_plane_type_counts(departing_airport: str, arriving_airport: str) -> dict
     conn.close()
 
     return results
-    
+
+
+
 
 def main():
     df_airports = pd.read_csv(r"data/airports.csv")
