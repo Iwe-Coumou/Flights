@@ -11,12 +11,11 @@ Includes:
 
 import plotly.graph_objects as go
 import plotly.express as px
-from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
+from helper_funcs import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay, create_flight_direction_mapping_table, compute_wind_impact
 from constants import NYC_AIRPORTS
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-import scipy.stats as stats
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
@@ -271,56 +270,99 @@ def multi_distance_distribution_gen(*args):
 
     fig.show()
 
-def analyze_wind_impact_vs_air_time(df):
+def plot_wind_impact_vs_air_time(conn, impact_threshold=5):
     """
-    Analyzes the relationship between wind impact sign and air time using Plotly.
+    Creates a violin plot to analyze the relationship between wind impact and air_time.
     
     Parameters:
-    df (pandas.DataFrame): DataFrame containing 'wind_impact' and 'air_time'.
+      conn (sqlite3.Connection): Connection to the SQLite database.
+      impact_threshold (float): Threshold (in knots) to classify wind as headwind/tailwind.
     
     Returns:
-    tuple: (boxplot_figure, scatterplot_figure, correlation)
+      tuple: (violin plot figure, correlation value)
     """
-    df = df.dropna(subset=["air_time", "wind_impact"])
-    df["wind_type"] = np.where(df["wind_impact"] < 0, "Headwind", "Tailwind")
-
-    # Compute correlation (Pearson correlation coefficient)
-    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
-
-    # Boxplot to compare air time for Headwind vs Tailwind
-    fig1 = px.box(df, x="wind_type", y="air_time", color="wind_type",
-                  title="Air Time vs. Wind Impact Type",
-                  labels={"wind_type": "Wind Type", "air_time": "Air Time (minutes)"},
-                  color_discrete_map={"Headwind": "red", "Tailwind": "green"})
-
-    # Scatter plot (manually adding a trendline)
-    fig2 = go.Figure()
-
-    fig2.add_trace(go.Scatter(
-        x=df["wind_impact"], 
-        y=df["air_time"], 
-        mode='markers', 
-        marker=dict(opacity=0.5), 
-        name="Flights"
-    ))
-
-    # Compute trendline manually (simple linear regression)
-    x_values = df["wind_impact"]
-    y_values = df["air_time"]
-    slope, intercept = np.polyfit(x_values, y_values, 1)  # Fit a linear model
-    trend_x = np.linspace(min(x_values), max(x_values), 100)
-    trend_y = slope * trend_x + intercept
-
-    # Add the trendline
-    fig2.add_trace(go.Scatter(
-        x=trend_x, y=trend_y, mode='lines', name='Trendline', line=dict(color='blue')
-    ))
-
-    fig2.update_layout(
-        title="Air Time vs. Wind Impact",
-        xaxis_title="Wind Impact",
-        yaxis_title="Air Time (minutes)"
+    cursor = conn.cursor()
+    # Check if the flight_direction_map table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flight_direction_map';")
+    if cursor.fetchone() is None:
+        print("flight_direction_map table not found. Creating it...")
+        create_flight_direction_mapping_table(conn)
+    
+    # Query flights joined with weather and flight_direction_map
+    query = """
+        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time,
+               w.wind_dir, w.wind_speed, fdm.direction
+        FROM flights f
+        LEFT JOIN weather w 
+            ON f.origin = w.origin AND f.time_hour = w.time_hour
+        LEFT JOIN flight_direction_map fdm 
+            ON f.origin = fdm.origin AND f.dest = fdm.dest;
+    """
+    df = pd.read_sql_query(query, conn)
+    
+    # Compute wind impact
+    df["wind_impact"] = df.apply(
+        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
+        axis=1
     )
+    
+    # Remove rows with missing air_time or wind_impact
+    df = df.dropna(subset=["air_time", "wind_impact"])
+    
+    # Classify wind type based on the wind impact
+    df["wind_type"] = np.where(df["wind_impact"] > impact_threshold, "Tailwind",
+                         np.where(df["wind_impact"] < -impact_threshold, "Headwind", "Crosswind"))
+    
+
+    correlation = np.corrcoef(df["wind_impact"], df["air_time"])[0, 1]
+    
+    # Create a violin plot of air_time by wind type
+    fig = px.violin(df, x="wind_type", y="air_time", box=False, points=False,
+                    title="Distribution of Air Time by Wind Type",
+                    color="wind_type", 
+                    color_discrete_map={"Headwind": "red", "Tailwind": "green", "Crosswind": "blue"})
+    
+    return fig, correlation  
+
+def plot_avg_departure_delay(conn):
+    """
+    Fetches the average departure delay per airline and returns a barplot.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    Figure: A barplot containing the bar chart of average departure delays per airline.
+    
+    """
+    cursor = conn.cursor()
+
+    query = """
+        SELECT airlines.name AS airline_name, AVG(flights.dep_delay) AS avg_dep_delay 
+        FROM flights 
+        JOIN airlines ON flights.carrier = airlines.carrier 
+        GROUP BY airlines.name
+    """
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+    df_delays = pd.DataFrame(rows, columns=["Airline", "Average departure delay"])
+
+    fig = go.Figure(data=[go.Bar(
+        x=df_delays["Airline"],
+        y=df_delays["Average departure delay"],
+        marker_color='skyblue'
+    )])
+
+    fig.update_layout(
+        title="Average Departure Delay per Airline",
+        xaxis_title="Airline",
+        yaxis_title="Average Departure Delay (minutes)",
+        xaxis_tickangle=-45,
+        template="plotly_white",
+        showlegend=False
+    )
+
 
     return fig1, fig2, correlation
 
@@ -406,3 +448,8 @@ def analyze_weather_effects_plots(db_filename="flights_database.db"):
     fig_manufacturer.show()
 #remember to load you data correctly on your local machine, I´ve test this on colab so it should be good now.
 analyze_weather_effects_plots()
+=======
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+
+    return fig
+

@@ -1,4 +1,5 @@
 # helper_funcs.py
+import sqlite3
 import numpy as np
 import pandas as pd
 
@@ -66,10 +67,12 @@ def compute_flight_direction_vectorized(origin_lat, origin_lon, dest_lat, dest_l
     """
     lat1, lon1, lat2, lon2 = map(np.radians, [origin_lat, origin_lon, dest_lat, dest_lon])
     delta_lon = lon2 - lon1
+
     x = np.sin(delta_lon) * np.cos(lat2)
-    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1)*np.cos(lat2)*np.cos(delta_lon)
-    bearing = (np.degrees(np.arctan2(x, y)) + 360) % 360
-    return float(bearing)
+    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
+
+    initial_bearing = np.arctan2(x, y)
+    return (np.degrees(initial_bearing) + 360) % 360  # Normalize to [0, 360]
 
 def compute_inner_product(flight_direction, wind_direction, wind_speed):
     """
@@ -96,106 +99,40 @@ def get_airports_locations(conn, airport_list=None):
 
 
 
-def create_planes_copy_with_speed(conn, recalc_speed=False):
-    c = conn.cursor()
-    c.execute("DROP TABLE IF EXISTS planes_copy")
-    c.execute("CREATE TABLE planes_copy AS SELECT * FROM planes")
-    cols = [x[1] for x in c.execute("PRAGMA table_info(planes_copy)")]
-    if "speed" not in cols:
-        c.execute("ALTER TABLE planes_copy ADD COLUMN speed REAL")
-    elif recalc_speed:
-        c.execute("UPDATE planes_copy SET speed = NULL")
-    c.execute("""
-        UPDATE planes_copy
-        SET speed = (
-            SELECT AVG(distance / (air_time / 60.0))
-            FROM flights
-            WHERE flights.tailnum = planes_copy.tailnum
-              AND air_time IS NOT NULL
-              AND air_time > 0
-              AND distance IS NOT NULL
-              AND distance > 0
-        )
-        WHERE EXISTS (
-            SELECT 1
-            FROM flights
-            WHERE flights.tailnum = planes_copy.tailnum
-              AND air_time IS NOT NULL
-              AND air_time > 0
-              AND distance IS NOT NULL
-              AND distance > 0
-        );
-    """)
-    conn.commit()
 
-    
-def update_planes_speed(conn):
-    c = conn.cursor()
-    cols = [x[1] for x in c.execute("PRAGMA table_info(planes)")]
-    if "speed" not in cols:
-        c.execute("ALTER TABLE planes ADD COLUMN speed REAL")
-    else:
-        c.execute("UPDATE planes SET speed = NULL")
-    c.execute("""
-        UPDATE planes
-        SET speed = (
-            SELECT AVG(distance / (air_time / 60.0))
-            FROM flights
-            WHERE flights.tailnum = planes.tailnum
-              AND air_time IS NOT NULL
-              AND air_time > 0
-        )
-    """)
-    conn.commit()
-    
-# one create a new table and modify that the other one modify the original
-
-    y = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
-
-    initial_bearing = np.arctan2(x, y)
-    return (np.degrees(initial_bearing) + 360) % 360  # Normalize to [0, 360]
-
-def create_flight_dataframe(conn):
+def create_flight_direction_mapping_table(conn):
     """
-    Fetches flight data, merges with airport coordinates, computes flight direction, 
-    and automatically adds the wind impact column.
+    Creates a new table 'flight_direction_map' in the database that stores each unique
+    origin-destination pair and its computed flight direction (bearing).
     """
+    # Step 1: Retrieve distinct origin-dest pairs
+    unique_pairs_df = pd.read_sql_query("SELECT DISTINCT origin, dest FROM flights;", conn)
     
-    query = """
-        SELECT f.flight, f.origin, f.dest, f.time_hour, f.air_time, 
-               w.wind_dir, w.wind_speed
-        FROM flights f
-        LEFT JOIN weather w 
-        ON f.origin = w.origin AND f.time_hour = w.time_hour;
-    """
-    df = pd.read_sql_query(query, conn)
-
-    # Fetch airport coordinates
+    # Step 2: Fetch airport coordinates
     airport_df = fetch_airport_coordinates_df(conn)
-
-    # Compute flight direction
-    unique_pairs = df[['origin', 'dest']].drop_duplicates()
-    unique_pairs = unique_pairs.merge(airport_df, left_on="origin", right_on="faa", how="left")\
-                               .rename(columns={"lat": "origin_lat", "lon": "origin_lon"})\
-                               .drop(columns=["faa"])
-    unique_pairs = unique_pairs.merge(airport_df, left_on="dest", right_on="faa", how="left")\
-                               .rename(columns={"lat": "dest_lat", "lon": "dest_lon"})\
-                               .drop(columns=["faa"])
     
-    unique_pairs["direction"] = compute_flight_direction_vectorized(
-        unique_pairs["origin_lat"], unique_pairs["origin_lon"], 
-        unique_pairs["dest_lat"], unique_pairs["dest_lon"]
+    # Merge to add origin coordinates
+    unique_pairs_df = unique_pairs_df.merge(
+        airport_df, left_on="origin", right_on="faa", how="left"
+    ).rename(columns={"lat": "origin_lat", "lon": "origin_lon"}).drop(columns=["faa"])
+    
+    # Merge to add destination coordinates
+    unique_pairs_df = unique_pairs_df.merge(
+        airport_df, left_on="dest", right_on="faa", how="left"
+    ).rename(columns={"lat": "dest_lat", "lon": "dest_lon"}).drop(columns=["faa"])
+    
+    # Step 3: Compute flight direction (bearing) using vectorized NumPy operations
+    unique_pairs_df["direction"] = compute_flight_direction_vectorized(
+        unique_pairs_df["origin_lat"], unique_pairs_df["origin_lon"],
+        unique_pairs_df["dest_lat"], unique_pairs_df["dest_lon"]
     )
+    
+    # Keep only necessary columns: origin, dest, and direction
+    mapping_df = unique_pairs_df[["origin", "dest", "direction"]]
+    
+    # Step 4: Create (or replace) the flight_direction_map table in the database.
+    mapping_df.to_sql("flight_direction_map", conn, if_exists="replace", index=False)
 
-    df = df.merge(unique_pairs[['origin', 'dest', 'direction']], on=['origin', 'dest'], how='left')
-
-    # **Compute Wind Impact Automatically**
-    df["wind_impact"] = df.apply(
-        lambda row: compute_wind_impact(row["direction"], row["wind_dir"], row["wind_speed"]),
-        axis=1
-    )
-
-    return df
 
 def compute_wind_impact(flight_direction, wind_direction, wind_speed):
     """
@@ -229,3 +166,132 @@ def add_wind_and_inner_product(df):
         lambda row: compute_wind_impact(row["direction"], row["wind_dir"]), axis=1
     )
     return df
+
+def get_ny_origin_airports(conn):
+    """
+    Identifies all different airports in NYC and saves a dataframe.
+
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with information about distinct NYC airports.
+    """
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT airports.* 
+        FROM airports 
+        JOIN flights ON airports.faa = flights.origin 
+        WHERE airports.tzone = 'America/New_York';
+    """
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+    df_origins = pd.DataFrame(rows, columns=[x[0] for x in cursor.description])
+
+    return df_origins
+
+def amount_of_delayed_flights(conn, start_month, end_month, destination):
+    """
+    Calculates the amount of delayed flights to the chosen destination.
+
+    Parameters: 
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+    start_month: beginning of the range months.
+    end_month: ending of the range months.
+    destination: the destination.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with the amount of delayed flights.
+
+    """
+    cursor = conn.cursor()
+
+    min_delay = 0
+
+    query = f"SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dest = ? AND dep_delay > ?;"
+    cursor.execute(query, (start_month, end_month, destination, min_delay))
+
+    amount_of_delayed_flights = cursor.fetchone()[0]
+
+    return amount_of_delayed_flights
+
+
+
+def create_col_with_speed(conn):
+    c = conn.cursor()
+    
+    # Controlla se la colonna "speed" esiste
+    cols = [x[1] for x in c.execute("PRAGMA table_info(planes)")]
+    if "speed" not in cols:
+        c.execute("ALTER TABLE planes ADD COLUMN speed REAL")
+
+    # Aggiorna la velocità solo per gli aerei con voli validi
+    c.execute("""
+        UPDATE planes
+        SET speed = (
+            SELECT AVG(distance / (air_time / 60.0))
+            FROM flights
+            WHERE flights.tailnum = planes.tailnum
+              AND air_time > 0
+              AND distance > 0
+        )
+    """)
+    
+    conn.commit()
+    
+    
+def create_col_local_arrival_time(conn, recalculate=False):
+    """
+    Updates the 'local_arrival_time' column in the flights table, 
+    converting arrival time to the destination airport's local time.
+
+    Parameters:
+    recalculate (bool): If True, recalculates all local arrival times. 
+                        If False, only calculates where 'local_arrival_time' is NULL.
+    """
+    c = conn.cursor()
+    
+    # Check if the column already exists
+    cols = [x[1] for x in c.execute("PRAGMA table_info(flights)")]
+    if "local_arrival_time" not in cols:
+        c.execute("ALTER TABLE flights ADD COLUMN local_arrival_time TEXT")
+
+    # Determine the condition for updating local arrival time
+    condition = "WHERE arr_time IS NOT NULL"
+    if not recalculate:
+        condition += " AND (local_arrival_time IS NULL OR local_arrival_time = '')"
+
+    # Update local arrival time based on origin and destination timezones
+    c.execute(f"""
+        UPDATE flights
+        SET local_arrival_time = (
+            SELECT strftime(
+                '%Y-%m-%d %H:%M', 
+                datetime(flights.arr_time, 
+                    CASE 
+                        WHEN CAST(a_dest.tz AS INTEGER) != CAST(a_origin.tz AS INTEGER) 
+                        THEN (CAST(a_dest.tz AS INTEGER) - CAST(a_origin.tz AS INTEGER)) || ' hours' 
+                        ELSE '0 hours'  -- Se il fuso è lo stesso, non modificare l'ora
+                    END
+                )
+            )
+            FROM airports a_origin
+            JOIN airports a_dest ON flights.dest = a_dest.faa
+            WHERE flights.origin = a_origin.faa
+            AND flights.rowid = flights.rowid
+        )
+        {condition};
+    """)
+
+    conn.commit()
+    print("Updated 'local_arrival_time' column in flights table.")
+
+
+
+    
+    
+db_path = "data/flights_database.db"
+conn = sqlite3.connect(db_path)
+create_col_local_arrival_time(conn, recalculate=True)
