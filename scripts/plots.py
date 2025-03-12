@@ -323,3 +323,86 @@ def analyze_wind_impact_vs_air_time(df):
     )
 
     return fig1, fig2, correlation
+
+def analyze_weather_effects_plots(db_filename="flights_database.db"):
+    """
+    Generates a bar plot comparing average departure delays in different wind and precipitation
+    conditions for each manufacturer, separating headwind and tailwind, and considering
+    operational limits and gustiness.
+    """
+    conn = sqlite3.connect(db_filename)
+    query = """
+    SELECT f.dep_delay, p.manufacturer, w.wind_speed, w.wind_dir, w.wind_gust, w.precip
+    FROM flights f
+    JOIN planes p ON f.tailnum = p.tailnum
+    JOIN weather w ON f.origin = w.origin AND f.time_hour = w.time_hour;
+    """
+
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+    # --- Data Cleaning and Filtering (already done) ---
+    df = df[df['dep_delay'] < 300]  # Remove delay outliers
+    df = df[df['dep_delay'] > -50]  # removing negative delay values (early departures)
+    df = df.dropna(subset=['dep_delay', 'manufacturer', 'wind_speed', 'wind_dir', 'wind_gust', 'precip'])  # Handle missing values
+
+    # --- Define Weather Conditions ---
+    # Define thresholds (adjust as needed)
+    strong_wind_threshold = 25  # Knots
+    gustiness_threshold = 10  # Difference between wind_gust and wind_speed
+    crosswind_threshold = 15  #Knots
+    max_tailwind_component = 10 #Knots. Most aircraft have a maximum tailwind component for safe takeoff and landing—often around 10 knots for many commercial jets
+
+    # Create a function to categorize wind conditions
+    def categorize_wind(row):
+        wind_speed = row['wind_speed']
+        wind_dir = row['wind_dir']
+        wind_gust = row['wind_gust']
+        precip = row['precip']
+
+        # Good Weather: Low wind speed, low gustiness, no precipitation
+        if wind_speed <= 10 and wind_gust - wind_speed <= 5 and precip == 0:
+            return 'Good'
+
+        # Problematic Conditions:
+        # Assuming runway heading is 0/360 degrees for simplicity - adjust as needed
+        # 1a. Strong Headwind (within +/- 30 degrees of runway heading)
+        if 330 <= wind_dir <= 360 or 0 <= wind_dir <= 30:
+            if wind_speed > strong_wind_threshold:
+                return 'Strong Headwind'
+
+        # 1b. Strong Tailwind (within +/- 30 degrees of runway heading + 180 degrees)
+        if 150 <= wind_dir <= 210:
+            #Check if max tailwind is exceeded
+            if wind_speed > max_tailwind_component:
+                return 'Strong Tailwind'
+
+        # 2. Strong Crosswind (wind direction is roughly perpendicular to runway - +/- 60 degrees)
+        crosswind_component = wind_speed * abs(sin(radians(wind_dir)))#abs(sin(radians(wind_dir)))
+
+        if crosswind_component > crosswind_threshold:
+            return 'Strong Crosswind'
+
+        # 3. High Gustiness
+        if wind_gust - wind_speed > gustiness_threshold:
+            return 'High Gustiness'
+
+        # 4. Precipitation
+        if precip > 0:
+            return 'Precipitation'
+
+        # If no specific condition is met, categorize as "Moderate"
+        return 'Moderate'
+
+    df['weather_condition'] = df.apply(categorize_wind, axis=1)
+
+    # --- Calculate Average Delay per Manufacturer and Weather Condition ---
+    manufacturer_delay = df.groupby(['manufacturer', 'weather_condition'])['dep_delay'].mean().reset_index()
+
+    # --- Visualization: Grouped Bar Plot ---
+    fig_manufacturer = px.bar(manufacturer_delay, x='manufacturer', y='dep_delay', color='weather_condition', barmode='group',
+                              title='Average Departure Delay per Manufacturer (by Weather Condition)',
+                              labels={'dep_delay': 'Average Delay (min)', 'manufacturer': 'Manufacturer', 'weather_condition': 'Weather Condition'})
+    fig_manufacturer.show()
+#remember to load you data correctly on your local machine, I´ve test this on colab so it should be good now.
+analyze_weather_effects_plots()
