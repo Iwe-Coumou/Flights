@@ -62,3 +62,61 @@ Run the visualization functions in `part1.py` and `plots.py` to explore and visu
 ### Step 3: Interactive Dashboard with Streamlit
 To launch the Streamlit dashboard, run the following command:
 
+```
+streamlit run dashboard.py
+```
+
+
+This will start a local server and open the dashboard in your default web browser. The dashboard allows you to:
+
+- Interactively explore flight delay data.
+- Visualize statistics and insights from the flight database.
+- Analyze weather impacts and other factors on flight delays.
+- Use filters to view data by departure and arrival airports.
+
+### Step 4: Additional Tasks and Features
+- Perform advanced analysis on flight delays, weather impacts, and the effect of wind direction on flight times.
+- Use `helper_funcs.py` to query specific data from the flights database and generate additional insights.
+
+## Features
+
+### 1. Visualizations:
+   - **Map of Airports**: Plot all airports in the world, with a focus on airports in the U.S.
+   - **Flight Paths**: Visualize flight paths between airports, specifically from New York City.
+   - **Distance Analysis**: Compare Euclidean and geodesic distances between airports.
+   - **Time Zone Analysis**: Plot and analyze the distribution of airports across different time zones.
+
+### 2. Data Cleaning and Wrangling:
+   - Remove unused airports.
+   - Add missing airports from a predefined list.
+   - Remove duplicate flights and handle missing values.
+
+### 3. Database Queries:
+   - Query the database for specific flight information, such as flight delays, departure times, and aircraft manufacturers.
+   - Compute statistics, such as average delay times for each airline.
+
+### 4. Data Analysis:
+   - Investigate relationships between flight distances, arrival delays, and other variables.
+   - Perform weather-related analysis and study the impact of wind on flight durations.
+
+### 5. Interactive Dashboard:
+   - **Flight Delay Analysis**: Display flight delay statistics and visualizations for various airports.
+   - **Weather Impact**: Analyze the effects of weather on flight delays and air travel.
+   - **Dynamic Filtering**: Filter data based on departure/arrival airports and dates.
+   - **Visualize Key Metrics**: Show key metrics such as average delays, number of flights, and more.
+
+## Contributing
+
+Feel free to fork this repository and submit pull requests. Any contributions, whether it’s code, documentation, or bug fixes, are highly appreciated.
+
+## License
+
+This project is licensed under the MIT License.
+
+---
+
+### Additional Notes:
+- Ensure that the SQLite database file (`flights_database.db`) is correctly set up and populated with the necessary data.
+- Make sure all necessary Python packages are installed before running the scripts.
+
+
