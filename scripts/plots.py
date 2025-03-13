@@ -16,6 +16,8 @@ from constants import NYC_AIRPORTS
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
+import sqlite3
+from math import sin, radians
 
 def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
     """
@@ -326,130 +328,196 @@ def plot_wind_impact_vs_air_time(conn, impact_threshold=5):
 
 def plot_avg_departure_delay(conn):
     """
-    Fetches the average departure delay per airline and returns a barplot.
+    Fetches and visualizes the average departure delay per airline.
 
     Parameters:
-    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+        conn (sqlite3.Connection): Database connection object.
 
     Returns:
-    Figure: A barplot containing the bar chart of average departure delays per airline.
+        plotly.graph_objects.Figure: A bar plot showing average delays by airline.
+        
+    Raises:
+        sqlite3.Error: If there's an error executing the SQL query.
+        ValueError: If no data is found for any airline.
+        
+    Example:
+        >>> conn = sqlite3.connect('flights.db')
+        >>> fig = plot_avg_departure_delay(conn)
+        >>> fig.show()
+    """
+    try:
+        cursor = conn.cursor()
+
+        query = """
+            SELECT airlines.name AS airline_name, 
+                   AVG(flights.dep_delay) AS avg_dep_delay 
+            FROM flights 
+            JOIN airlines ON flights.carrier = airlines.carrier 
+            GROUP BY airlines.name
+        """
+        cursor.execute(query)
+
+        rows = cursor.fetchall()
+        if not rows:
+            raise ValueError("No flight delay data found for any airline")
+
+        df_delays = pd.DataFrame(rows, columns=["Airline", "Average departure delay"])
+
+        fig = go.Figure(data=[go.Bar(
+            x=df_delays["Airline"],
+            y=df_delays["Average departure delay"],
+            marker_color='skyblue'
+        )])
+
+        fig.update_layout(
+            title="Average Departure Delay per Airline",
+            xaxis_title="Airline",
+            yaxis_title="Average Departure Delay (minutes)",
+            xaxis_tickangle=-45,
+            template="plotly_white",
+            showlegend=False
+        )
+
+        return fig
     
-    """
-    cursor = conn.cursor()
-
-    query = """
-        SELECT airlines.name AS airline_name, AVG(flights.dep_delay) AS avg_dep_delay 
-        FROM flights 
-        JOIN airlines ON flights.carrier = airlines.carrier 
-        GROUP BY airlines.name
-    """
-    cursor.execute(query)
-
-    rows = cursor.fetchall()
-    df_delays = pd.DataFrame(rows, columns=["Airline", "Average departure delay"])
-
-    fig = go.Figure(data=[go.Bar(
-        x=df_delays["Airline"],
-        y=df_delays["Average departure delay"],
-        marker_color='skyblue'
-    )])
-
-    fig.update_layout(
-        title="Average Departure Delay per Airline",
-        xaxis_title="Airline",
-        yaxis_title="Average Departure Delay (minutes)",
-        xaxis_tickangle=-45,
-        template="plotly_white",
-        showlegend=False
-    )
-
-
-    return fig1, fig2, correlation
+    except sqlite3.Error as e:
+        raise sqlite3.Error(f"Database error occurred: {str(e)}")
+    except Exception as e:
+        raise Exception(f"An error occurred while creating the plot: {str(e)}")
 
 def analyze_weather_effects_plots(db_filename="flights_database.db"):
     """
-    Generates a bar plot comparing average departure delays in different wind and precipitation
-    conditions for each manufacturer, separating headwind and tailwind, and considering
-    operational limits and gustiness.
+    Analyzes and visualizes the relationship between weather conditions and flight delays
+    for different aircraft manufacturers.
+
+    Parameters:
+        db_filename (str): Path to the SQLite database file. Defaults to 'flights_database.db'.
+
+    Returns:
+        plotly.graph_objects.Figure: A grouped bar plot showing average delays by manufacturer
+                                   and weather condition.
+
+    Raises:
+        sqlite3.Error: If there's an error connecting to or querying the database.
+        ValueError: If no valid data is found after filtering.
+        
+    Example:
+        >>> fig = analyze_weather_effects_plots('my_flights.db')
+        >>> fig.show()
     """
-    conn = sqlite3.connect(db_filename)
-    query = """
-    SELECT f.dep_delay, p.manufacturer, w.wind_speed, w.wind_dir, w.wind_gust, w.precip
-    FROM flights f
-    JOIN planes p ON f.tailnum = p.tailnum
-    JOIN weather w ON f.origin = w.origin AND f.time_hour = w.time_hour;
-    """
+    try:
+        conn = sqlite3.connect(db_filename)
+        query = """
+        SELECT f.dep_delay, p.manufacturer, 
+               w.wind_speed, w.wind_dir, w.wind_gust, w.precip
+        FROM flights f
+        JOIN planes p ON f.tailnum = p.tailnum
+        JOIN weather w ON f.origin = w.origin 
+                     AND f.time_hour = w.time_hour
+        WHERE p.manufacturer IS NOT NULL
+        """
 
-    df = pd.read_sql_query(query, conn)
-    conn.close()
+        df = pd.read_sql_query(query, conn)
+        conn.close()
 
-    # --- Data Cleaning and Filtering (already done) ---
-    df = df[df['dep_delay'] < 300]  # Remove delay outliers
-    df = df[df['dep_delay'] > -50]  # removing negative delay values (early departures)
-    df = df.dropna(subset=['dep_delay', 'manufacturer', 'wind_speed', 'wind_dir', 'wind_gust', 'precip'])  # Handle missing values
+        if df.empty:
+            raise ValueError("No valid data found in the database")
 
-    # --- Define Weather Conditions ---
-    # Define thresholds (adjust as needed)
-    strong_wind_threshold = 25  # Knots
-    gustiness_threshold = 10  # Difference between wind_gust and wind_speed
-    crosswind_threshold = 15  #Knots
-    max_tailwind_component = 10 #Knots. Most aircraft have a maximum tailwind component for safe takeoff and landing—often around 10 knots for many commercial jets
+        # Data Cleaning and Filtering
+        df = df[df['dep_delay'] < 300]  # Remove delay outliers
+        df = df[df['dep_delay'] > -50]  # Remove early departures
+        df = df.dropna(subset=['dep_delay', 'manufacturer', 'wind_speed', 
+                              'wind_dir', 'wind_gust', 'precip'])
 
-    # Create a function to categorize wind conditions
-    def categorize_wind(row):
-        wind_speed = row['wind_speed']
-        wind_dir = row['wind_dir']
-        wind_gust = row['wind_gust']
-        precip = row['precip']
+        if df.empty:
+            raise ValueError("No valid data remains after filtering")
 
-        # Good Weather: Low wind speed, low gustiness, no precipitation
-        if wind_speed <= 10 and wind_gust - wind_speed <= 5 and precip == 0:
-            return 'Good'
+        # --- Define Weather Conditions ---
+        # Define thresholds (adjust as needed)
+        strong_wind_threshold = 25  # Knots
+        gustiness_threshold = 10  # Difference between wind_gust and wind_speed
+        crosswind_threshold = 15  #Knots
+        max_tailwind_component = 10 #Knots. Most aircraft have a maximum tailwind component for safe takeoff and landing—often around 10 knots for many commercial jets
 
-        # Problematic Conditions:
-        # Assuming runway heading is 0/360 degrees for simplicity - adjust as needed
-        # 1a. Strong Headwind (within +/- 30 degrees of runway heading)
-        if 330 <= wind_dir <= 360 or 0 <= wind_dir <= 30:
-            if wind_speed > strong_wind_threshold:
-                return 'Strong Headwind'
+        # Create a function to categorize wind conditions
+        def categorize_wind(row):
+            """
+            Categorizes weather conditions based on wind and precipitation data.
 
-        # 1b. Strong Tailwind (within +/- 30 degrees of runway heading + 180 degrees)
-        if 150 <= wind_dir <= 210:
-            #Check if max tailwind is exceeded
-            if wind_speed > max_tailwind_component:
-                return 'Strong Tailwind'
+            Parameters:
+                row (pd.Series): A pandas Series containing the following fields:
+                    - wind_speed: Wind speed in knots
+                    - wind_dir: Wind direction in degrees
+                    - wind_gust: Wind gust speed in knots
+                    - precip: Precipitation amount
 
-        # 2. Strong Crosswind (wind direction is roughly perpendicular to runway - +/- 60 degrees)
-        crosswind_component = wind_speed * abs(sin(radians(wind_dir)))#abs(sin(radians(wind_dir)))
+            Returns:
+                str: Weather condition category ('Good', 'Strong Headwind', 'Strong Tailwind',
+                     'Strong Crosswind', 'High Gustiness', 'Precipitation', or 'Moderate')
 
-        if crosswind_component > crosswind_threshold:
-            return 'Strong Crosswind'
+            Raises:
+                KeyError: If any required field is missing from the input row
+                ValueError: If wind direction is not in valid range [0-360]
+            """
+            try:
+                wind_speed = row['wind_speed']
+                wind_dir = row['wind_dir']
+                wind_gust = row['wind_gust']
+                precip = row['precip']
 
-        # 3. High Gustiness
-        if wind_gust - wind_speed > gustiness_threshold:
-            return 'High Gustiness'
+                # Validate wind direction
+                if not (0 <= wind_dir <= 360):
+                    raise ValueError(f"Wind direction must be between 0 and 360 degrees, got {wind_dir}")
 
-        # 4. Precipitation
-        if precip > 0:
-            return 'Precipitation'
+                # Good Weather: Low wind speed, low gustiness, no precipitation
+                if wind_speed <= 10 and wind_gust - wind_speed <= 5 and precip == 0:
+                    return 'Good'
 
-        # If no specific condition is met, categorize as "Moderate"
-        return 'Moderate'
+                # Problematic Conditions:
+                # Strong Headwind (within +/- 30 degrees of runway heading)
+                if (330 <= wind_dir <= 360 or 0 <= wind_dir <= 30) and wind_speed > strong_wind_threshold:
+                    return 'Strong Headwind'
 
-    df['weather_condition'] = df.apply(categorize_wind, axis=1)
+                # Strong Tailwind (within +/- 30 degrees of runway heading + 180 degrees)
+                if 150 <= wind_dir <= 210 and wind_speed > max_tailwind_component:
+                    return 'Strong Tailwind'
 
-    # --- Calculate Average Delay per Manufacturer and Weather Condition ---
-    manufacturer_delay = df.groupby(['manufacturer', 'weather_condition'])['dep_delay'].mean().reset_index()
+                # Strong Crosswind
+                crosswind_component = wind_speed * abs(sin(radians(wind_dir)))
+                if crosswind_component > crosswind_threshold:
+                    return 'Strong Crosswind'
 
-    # --- Visualization: Grouped Bar Plot ---
-    fig_manufacturer = px.bar(manufacturer_delay, x='manufacturer', y='dep_delay', color='weather_condition', barmode='group',
-                              title='Average Departure Delay per Manufacturer (by Weather Condition)',
-                              labels={'dep_delay': 'Average Delay (min)', 'manufacturer': 'Manufacturer', 'weather_condition': 'Weather Condition'})
-    fig_manufacturer.show()
-#remember to load you data correctly on your local machine, I´ve test this on colab so it should be good now.
-analyze_weather_effects_plots()
-=======
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+                # High Gustiness
+                if wind_gust - wind_speed > gustiness_threshold:
+                    return 'High Gustiness'
 
-    return fig
+                # Precipitation
+                if precip > 0:
+                    return 'Precipitation'
+
+                return 'Moderate'
+
+            except KeyError as e:
+                raise KeyError(f"Missing required field in input row: {str(e)}")
+            except Exception as e:
+                raise Exception(f"Error categorizing wind conditions: {str(e)}")
+
+        df['weather_condition'] = df.apply(categorize_wind, axis=1)
+
+        # --- Calculate Average Delay per Manufacturer and Weather Condition ---
+        manufacturer_delay = df.groupby(['manufacturer', 'weather_condition'])['dep_delay'].mean().reset_index()
+
+        # --- Visualization: Grouped Bar Plot ---
+        fig = px.bar(manufacturer_delay, x='manufacturer', y='dep_delay', color='weather_condition', barmode='group',
+                     title='Average Departure Delay per Manufacturer (by Weather Condition)',
+                     labels={'dep_delay': 'Average Delay (min)', 'manufacturer': 'Manufacturer', 'weather_condition': 'Weather Condition'})
+
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+
+        return fig
+    
+    except sqlite3.Error as e:
+        raise sqlite3.Error(f"Database error occurred: {str(e)}")
+    except Exception as e:
+        raise Exception(f"An error occurred while creating the plot: {str(e)}")
 
