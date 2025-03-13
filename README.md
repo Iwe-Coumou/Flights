@@ -105,9 +105,9 @@ This repository contains several Python scripts and a database file that interac
 ## Setup and Installation
 
 To get started with this project, you will need to have Python installed on your machine. You will also need to install the following dependencies:
-'''
+```
 pip install pandas plotly numpy sqlite3 timezonefinder pytz
-'''
+```
 
 Clone the repository and make sure the following files are present:
 
