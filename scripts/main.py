@@ -8,6 +8,7 @@ e poi produce 6 subplots:
 
 import sqlite3 as sql
 import pandas as pd
+
 from constants import *
 from distance_calculations import *
 from plots import *

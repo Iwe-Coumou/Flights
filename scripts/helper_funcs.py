@@ -1,14 +1,10 @@
-# helper_funcs.py
-import sqlite3
-import numpy as np
-import pandas as pd
-
 """
 Module with additional utility functions for querying the DB 
 and computing certain values (arrival delays, directions, etc.).
 """
 
 import numpy as np
+import pandas as pd
 from pandas import read_sql_query
 
 def get_flight_destinations_from_airport_on_day(conn, month: int, day: int, airport: str) -> set:
@@ -82,33 +78,15 @@ def compute_inner_product(flight_direction, wind_direction, wind_speed):
     angle_diff = np.radians(flight_direction - wind_direction)
     return wind_speed * np.cos(angle_diff)
 
-def get_airports_locations(conn, airport_list=None):
-    """
-    Fetches airport locations from the 'airports' table.
-    Optionally filters by a provided list of airport codes.
-    """
-    query = "SELECT faa, lat, lon FROM airports"
-    cursor = conn.cursor()
-    if airport_list:
-        placeholders = ",".join(["?"] * len(airport_list))
-        query += f" WHERE faa IN ({placeholders})"
-        cursor.execute(query, airport_list)
-    else:
-        cursor.execute(query)
-    return cursor.fetchall()
-
-
-
-
 def create_flight_direction_mapping_table(conn):
     """
     Creates a new table 'flight_direction_map' in the database that stores each unique
     origin-destination pair and its computed flight direction (bearing).
     """
-    # Step 1: Retrieve distinct origin-dest pairs
+    # Retrieve distinct origin-dest pairs
     unique_pairs_df = pd.read_sql_query("SELECT DISTINCT origin, dest FROM flights;", conn)
     
-    # Step 2: Fetch airport coordinates
+    # Fetch airport coordinates
     airport_df = fetch_airport_coordinates_df(conn)
     
     # Merge to add origin coordinates
@@ -121,7 +99,7 @@ def create_flight_direction_mapping_table(conn):
         airport_df, left_on="dest", right_on="faa", how="left"
     ).rename(columns={"lat": "dest_lat", "lon": "dest_lon"}).drop(columns=["faa"])
     
-    # Step 3: Compute flight direction (bearing) using vectorized NumPy operations
+    # Compute flight direction (bearing) using vectorized NumPy operations
     unique_pairs_df["direction"] = compute_flight_direction_vectorized(
         unique_pairs_df["origin_lat"], unique_pairs_df["origin_lon"],
         unique_pairs_df["dest_lat"], unique_pairs_df["dest_lon"]
@@ -130,9 +108,8 @@ def create_flight_direction_mapping_table(conn):
     # Keep only necessary columns: origin, dest, and direction
     mapping_df = unique_pairs_df[["origin", "dest", "direction"]]
     
-    # Step 4: Create (or replace) the flight_direction_map table in the database.
+    # Create (or replace) the flight_direction_map table in the database.
     mapping_df.to_sql("flight_direction_map", conn, if_exists="replace", index=False)
-
 
 def compute_wind_impact(flight_direction, wind_direction, wind_speed):
     """
@@ -217,8 +194,6 @@ def amount_of_delayed_flights(conn, start_month, end_month, destination):
 
     return amount_of_delayed_flights
 
-
-
 def create_col_with_speed(conn):
     c = conn.cursor()
     
@@ -240,8 +215,7 @@ def create_col_with_speed(conn):
     """)
     
     conn.commit()
-    
-    
+     
 def create_col_local_arrival_time(conn, recalculate=False):
     """
     Updates the 'local_arrival_time' column in the flights table, 
@@ -287,11 +261,3 @@ def create_col_local_arrival_time(conn, recalculate=False):
 
     conn.commit()
     print("Updated 'local_arrival_time' column in flights table.")
-
-
-
-    
-    
-db_path = "data/flights_database.db"
-conn = sqlite3.connect(db_path)
-create_col_local_arrival_time(conn, recalculate=True)
