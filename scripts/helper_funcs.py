@@ -53,6 +53,150 @@ def top_5_carriers(conn, destination_airport: str):
     """
     return read_sql_query(query, conn, params=(destination_airport,))
 
+def get_available_destination_airports(conn, origin_airport):
+    """
+    Fetches all unique destination airports for a given origin airport.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin_airport (str): Selected departure airport.
+
+    Returns:
+    list: Sorted list of unique destination airports.
+    """
+    query = "SELECT DISTINCT dest FROM flights WHERE origin = ?;"
+    cursor = conn.cursor()
+    cursor.execute(query, (origin_airport,))
+    airports = [row[0] for row in cursor.fetchall()]
+    return sorted(airports)
+
+def get_top_5_carriers_for_route(conn, origin, destination):
+    
+    """
+    Fetches the top 5 airlines operating the most flights on a given route.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin (str): Origin airport code.
+    destination (str): Destination airport code.
+
+    Returns:
+    pandas.DataFrame: DataFrame with carrier and number of flights.
+    """
+    query = """
+        SELECT carrier, COUNT(*) as num_flights 
+        FROM flights 
+        WHERE origin = ? AND dest = ?
+        GROUP BY carrier
+        ORDER BY num_flights DESC
+        LIMIT 5;
+    """
+    return read_sql_query(query, conn, params=(origin, destination))
+def get_weather_stats_for_route(conn, origin, destination):
+    
+    """
+    Fetches average weather statistics (wind speed, temperature) for a flight route.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin (str): Origin airport code.
+    destination (str): Destination airport code.
+
+    Returns:
+    dict: Dictionary with average temperature, wind speed, and other stats.
+    """
+    query = """
+        SELECT AVG(wind_speed) AS avg_wind_speed, AVG(temp) AS avg_temp
+        FROM weather
+        WHERE origin = ? 
+        AND time_hour IN (
+            SELECT time_hour FROM flights WHERE origin = ? AND dest = ?
+        );
+    """
+    cursor = conn.cursor()
+    cursor.execute(query, (origin, origin, destination))
+    result = cursor.fetchone()
+    
+    return {
+        "avg_wind_speed": result[0] if result else None,
+        "avg_temp": result[1] if result else None,
+    }
+def get_flight_counts_for_route(conn, origin, destination):
+    """
+    Fetches average daily flights and total flights per month for a given route.
+    """
+    cursor = conn.cursor()
+
+    # Query per calcolare il numero medio di voli giornalieri
+    query_daily = """
+        SELECT COUNT(*) * 1.0 / (SELECT COUNT(DISTINCT month || '-' || day) 
+                                 FROM flights 
+                                 WHERE origin = ? AND dest = ?) 
+        FROM flights 
+        WHERE origin = ? AND dest = ?;
+    """
+
+    # Query per il numero di voli mensili
+    query_monthly = """
+        SELECT month, COUNT(*) AS num_flights
+        FROM flights 
+        WHERE origin = ? AND dest = ?
+        GROUP BY month
+        ORDER BY month;
+    """
+
+    # Esegui la query per il numero medio di voli giornalieri
+    cursor.execute(query_daily, (origin, destination, origin, destination))
+    avg_daily_flights = cursor.fetchone()[0] or 0  # Evita None se la query non restituisce nulla
+
+    # Esegui la query per il numero di voli mensili
+    df_monthly_flights = read_sql_query(query_monthly, conn, params=(origin, destination))
+
+    return avg_daily_flights, df_monthly_flights
+
+def get_delay_stats_for_route(conn, origin, destination):
+    """
+    Fetches average arrival delay statistics for a given route.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin (str): Origin airport code.
+    destination (str): Destination airport code.
+
+    Returns:
+    tuple: (df_by_month, df_by_carrier, df_by_manufacturer)
+    """
+    query_by_month = """
+        SELECT month, AVG(arr_delay) AS avg_delay
+        FROM flights 
+        WHERE origin = ? AND dest = ?
+        GROUP BY month
+        ORDER BY month;
+    """
+
+    query_by_carrier = """
+        SELECT carrier, AVG(arr_delay) AS avg_delay
+        FROM flights 
+        WHERE origin = ? AND dest = ?
+        GROUP BY carrier
+        ORDER BY avg_delay DESC;
+    """
+
+    query_by_manufacturer = """
+        SELECT planes.manufacturer, AVG(flights.arr_delay) AS avg_delay
+        FROM flights 
+        JOIN planes ON flights.tailnum = planes.tailnum
+        WHERE flights.origin = ? AND flights.dest = ?
+        GROUP BY planes.manufacturer
+        ORDER BY avg_delay DESC;
+    """
+
+    df_by_month = read_sql_query(query_by_month, conn, params=(origin, destination))
+    df_by_carrier = read_sql_query(query_by_carrier, conn, params=(origin, destination))
+    df_by_manufacturer = read_sql_query(query_by_manufacturer, conn, params=(origin, destination))
+
+    return df_by_month, df_by_carrier, df_by_manufacturer
+
 
 def get_all_origin_airports(conn):
     """

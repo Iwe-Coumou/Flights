@@ -20,6 +20,35 @@ import sqlite3 as sql
 from math import sin, radians
 
 
+def plot_route_map(conn, origin, destination):
+    """
+    Generates a flight path visualization between two airports.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin (str): Origin airport code.
+    destination (str): Destination airport code.
+
+    Returns:
+    plotly Figure: Map with flight route.
+    """
+    cursor = conn.cursor()
+    cursor.execute("SELECT lat, lon FROM airports WHERE faa = ?", (origin,))
+    origin_data = cursor.fetchone()
+    
+    cursor.execute("SELECT lat, lon FROM airports WHERE faa = ?", (destination,))
+    destination_data = cursor.fetchone()
+
+    if not origin_data or not destination_data:
+        return None  # One of the airports is missing
+
+    fig = go.Figure()
+    fig.add_trace(go.Scattergeo(lon=[origin_data[1], destination_data[1]],
+                                lat=[origin_data[0], destination_data[0]],
+                                mode="lines",
+                                line=dict(width=2, color="red")))
+
+    return fig
 
 
 

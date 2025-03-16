@@ -40,16 +40,22 @@ if "conn" not in st.session_state:
 conn = st.session_state.conn
 
 # ----------------- SIDEBAR -----------------
-
-# Sidebar Options
-#Contains buttons for database maintenance and additional functionalities.
-
 with st.sidebar:
     st.header("Options")
-
+    
     if st.button("Clean Database"):
         clean_database(conn)
         st.success("Database cleaned successfully!")
+    
+    selected_date = st.selectbox("Select a date", sorted(get_available_dates(conn)), index=0, key="sidebar_date")
+    selected_airport = st.selectbox("Select departure airport", sorted(get_all_origin_airports(conn)), index=0, key="sidebar_airport")
+
+    
+    destination_airports = get_available_destination_airports(conn, selected_airport)
+    if destination_airports:
+        selected_destination = st.selectbox("Select destination airport (optional)", ["None"] + sorted(destination_airports), index=0)
+    else:
+        selected_destination = "None"
 
 # ----------------- DASHBOARD TITLE -----------------
 st.title("✈️ NYC Flights Dashboard")
@@ -65,87 +71,131 @@ available_dates = get_available_dates(conn)  # Fetch available flight dates
 # ----------------- UPPER BLOCKS (Two side-by-side) -----------------
 col1, col2 = st.columns(2)
 
-with col1:
-    
-    # Flight Map
-    #This section displays the flight map for departures from a selected NYC airport on a given date.
-    
-    selected_date = st.selectbox("Select a date", sorted(available_dates), index=0)
-    selected_airport = st.selectbox("Select a departure airport", sorted(available_airports), index=0)
+if selected_destination == "None":
 
-    # Fetch destinations dynamically based on selected airport and date
-    month, day = selected_date.month, selected_date.day
-    destination_airports = get_flight_destinations_from_airport_on_day(conn, month, day, selected_airport)
 
-    # Generate Flight Map
-    fig, missing = plot_destinations_on_day_from_NYC_airport(conn, month, day, selected_airport)
+    with col1:
+        
+        # Flight Map
+        #This section displays the flight map for departures from a selected NYC airport on a given date.
+        
+        selected_date = st.selectbox("Select a date", sorted(available_dates), index=0, key="col1_date")
+        selected_airport = st.selectbox("Select a departure airport", sorted(available_airports), index=0, key="col1_airport")
 
-    if fig:
+
+        # Fetch destinations dynamically based on selected airport and date
+        month, day = selected_date.month, selected_date.day
+        destination_airports = get_flight_destinations_from_airport_on_day(conn, month, day, selected_airport)
+
+        # Generate Flight Map
+        fig, missing = plot_destinations_on_day_from_NYC_airport(conn, month, day, selected_airport)
+
+        if fig:
+            with st.container():
+                st.subheader("📍 Flight Map")
+                st.plotly_chart(fig, use_container_width=True)
+
+                if len(missing) > 0:
+                    st.warning(f"Missing airports in database: {missing}")
+
+    with col2:
+        
+        # Top 5 Airlines by Number of Flights   
+        #Displays the top 5 airlines flying to a selected destination.
+        
+        if destination_airports:
+            destination_airport = st.selectbox(
+                "Select destination airport",
+                sorted(destination_airports),  
+                index=0
+            )
+        else:
+            st.warning(f"No destinations found for {selected_airport}. Using default: LAX")
+            destination_airport = "LAX"  
+
+        df_top_carriers = top_5_carriers(conn, destination_airport)
+
+        if not df_top_carriers.empty:
+            with st.container():
+                st.subheader("🏆 Top 5 Airlines by Number of Flights")
+
+                fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights",
+                                    title=f"Top 5 Airlines for {destination_airport}",
+                                    labels={"carrier": "Airline", "num_flights": "Flights"},
+                                    color="carrier")
+                st.plotly_chart(fig_carriers, use_container_width=True)
+
+    # ----------------- MIDDLE FULL-WIDTH BLOCK -----------------
+
+    # Average Departure Delay by Airline
+    #Analyzes the average departure delay per airline.
+
+    fig_delay = plot_avg_departure_delay(conn)
+    if fig_delay:
         with st.container():
-            st.subheader("📍 Flight Map")
-            st.plotly_chart(fig, use_container_width=True)
+            st.subheader("⏳ Average Departure Delay by Airline")
+            st.plotly_chart(fig_delay, use_container_width=True)
 
-            if len(missing) > 0:
-                st.warning(f"Missing airports in database: {missing}")
+    # ----------------- LOWER BLOCKS (Two side-by-side) -----------------
+    col3, col4 = st.columns(2)
 
-with col2:
+    with col3:
+        # Distance vs. Arrival Delay
+        #Examines the correlation between flight distance and arrival delays.
+        
+        fig_distance_delay, correlation = plot_distance_vs_arr_delay(conn)
+
+        if fig_distance_delay:
+            with st.container():
+                st.subheader("📊 Distance vs. Arrival Delay")
+                st.plotly_chart(fig_distance_delay, use_container_width=True)
+                st.write(f"Correlation between Distance and Arrival Delay: {correlation:.2f}")
+
+    with col4:
+
+        ## Additional Metric (Future Expansion)    
+        #This space can be used for extra analysis in the future.
+
+        with st.container():
+            st.subheader("✈️ Additional Metric (Future Expansion)")
+            st.write("This space can be used for extra analysis in the future.")
+else:
+    st.subheader(f"🔗 Route Analysis: {selected_airport} → {selected_destination}")
+    fig_route = plot_route_map(conn, selected_airport, selected_destination)
+    if fig_route:
+        st.plotly_chart(fig_route, use_container_width=True)
     
-    # Top 5 Airlines by Number of Flights   
-    #Displays the top 5 airlines flying to a selected destination.
-    
-    if destination_airports:
-        destination_airport = st.selectbox(
-            "Select destination airport",
-            sorted(destination_airports),  
-            index=0
-        )
-    else:
-        st.warning(f"No destinations found for {selected_airport}. Using default: LAX")
-        destination_airport = "LAX"  
-
-    df_top_carriers = top_5_carriers(conn, destination_airport)
-
+    df_top_carriers = get_top_5_carriers_for_route(conn, selected_airport, selected_destination)
     if not df_top_carriers.empty:
-        with st.container():
-            st.subheader("🏆 Top 5 Airlines by Number of Flights")
-
-            fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights",
-                                  title=f"Top 5 Airlines for {destination_airport}",
-                                  labels={"carrier": "Airline", "num_flights": "Flights"},
-                                  color="carrier")
-            st.plotly_chart(fig_carriers, use_container_width=True)
-
-# ----------------- MIDDLE FULL-WIDTH BLOCK -----------------
-
-# Average Departure Delay by Airline
-#Analyzes the average departure delay per airline.
-
-fig_delay = plot_avg_departure_delay(conn)
-if fig_delay:
-    with st.container():
-        st.subheader("⏳ Average Departure Delay by Airline")
-        st.plotly_chart(fig_delay, use_container_width=True)
-
-# ----------------- LOWER BLOCKS (Two side-by-side) -----------------
-col3, col4 = st.columns(2)
-
-with col3:
-    # Distance vs. Arrival Delay
-    #Examines the correlation between flight distance and arrival delays.
+        st.subheader("🏆 Top 5 Airlines on This Route")
+        fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights", title=f"Top 5 Airlines for {selected_airport} → {selected_destination}", labels={"carrier": "Airline", "num_flights": "Flights"}, color="carrier")
+        st.plotly_chart(fig_carriers, use_container_width=True)
     
-    fig_distance_delay, correlation = plot_distance_vs_arr_delay(conn)
-
-    if fig_distance_delay:
-        with st.container():
-            st.subheader("📊 Distance vs. Arrival Delay")
-            st.plotly_chart(fig_distance_delay, use_container_width=True)
-            st.write(f"Correlation between Distance and Arrival Delay: {correlation:.2f}")
-
-with col4:
-
-    ## Additional Metric (Future Expansion)    
-    #This space can be used for extra analysis in the future.
-
-    with st.container():
-        st.subheader("✈️ Additional Metric (Future Expansion)")
-        st.write("This space can be used for extra analysis in the future.")
+    weather_stats = get_weather_stats_for_route(conn, selected_airport, selected_destination)
+    if weather_stats["avg_wind_speed"] is not None:
+        st.subheader("🌦️ Weather Stats on This Route")
+        st.write(f"Average Wind Speed: {weather_stats['avg_wind_speed']:.2f} knots")
+        st.write(f"Average Temperature: {weather_stats['avg_temp']:.2f}°C")
+    else:
+        st.warning("No weather data available for this route.")
+    
+    avg_daily_flights, df_monthly_flights = get_flight_counts_for_route(conn, selected_airport, selected_destination)
+    st.subheader("📈 Flight Volume Analysis")
+    st.metric(label="Average Flights Per Day", value=f"{avg_daily_flights:.1f}")
+    fig_flights = px.bar(df_monthly_flights, x="month", y="num_flights", title="Total Flights Per Month", labels={"month": "Month", "num_flights": "Flights"})
+    st.plotly_chart(fig_flights, use_container_width=True)
+    
+    df_by_month, df_by_carrier, df_by_manufacturer = get_delay_stats_for_route(conn, selected_airport, selected_destination)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("⏳ Average Delay Per Month")
+        fig_delay_month = px.line(df_by_month, x="month", y="avg_delay", title="Average Delay by Month", labels={"month": "Month", "avg_delay": "Average Delay (min)"})
+        st.plotly_chart(fig_delay_month, use_container_width=True)
+    with col2:
+        st.subheader("✈️ Average Delay by Airline")
+        fig_delay_carrier = px.bar(df_by_carrier, x="carrier", y="avg_delay", title="Average Delay by Carrier", labels={"carrier": "Airline", "avg_delay": "Average Delay (min)"}, color="carrier")
+        st.plotly_chart(fig_delay_carrier, use_container_width=True)
+    st.subheader("🏭 Average Delay by Aircraft Manufacturer")
+    fig_delay_manufacturer = px.bar(df_by_manufacturer, x="manufacturer", y="avg_delay", title="Average Delay by Manufacturer", labels={"manufacturer": "Aircraft Manufacturer", "avg_delay": "Average Delay (min)"}, color="manufacturer")
+    st.plotly_chart(fig_delay_manufacturer, use_container_width=True)
