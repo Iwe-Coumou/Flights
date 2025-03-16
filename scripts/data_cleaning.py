@@ -611,8 +611,3 @@ def clean_database(conn):
 
     print("Database cleaning completed.")
 
-if __name__ == "__main__":
-    db_path = "data/flights_database.db"
-    conn = sqlite3.connect(db_path)
-    clean_database(conn)
-    conn.close()

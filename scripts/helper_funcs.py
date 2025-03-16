@@ -2,7 +2,7 @@
 import sqlite3
 import numpy as np
 import pandas as pd
-
+import datetime
 """
 Module with additional utility functions for querying the DB 
 and computing certain values (arrival delays, directions, etc.).
@@ -38,6 +38,53 @@ def top_5_manufacturers(conn, destination_airport: str):
         LIMIT 5;
     """
     return read_sql_query(query, conn, params=(destination_airport,))
+
+def top_5_carriers(conn, destination_airport: str):
+    """
+    Finds the top 5 airlines for planes flying to a given airport code.
+    """
+    query = """
+        SELECT flights.carrier, COUNT(*) as num_flights 
+        FROM flights 
+        WHERE flights.dest = ?
+        GROUP BY flights.carrier
+        ORDER BY num_flights DESC
+        LIMIT 5;
+    """
+    return read_sql_query(query, conn, params=(destination_airport,))
+
+
+def get_all_origin_airports(conn):
+    """
+    Fetches all unique origin airports from the flights database.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+
+    Returns:
+    list: A sorted list of unique origin airport codes.
+    """
+    query = "SELECT DISTINCT origin FROM flights;"
+    cursor = conn.cursor()
+    cursor.execute(query)
+    airports = [row[0] for row in cursor.fetchall()]
+    return sorted(airports)  # Sorted for better usability
+
+def get_available_dates(conn):
+    """
+    Fetches all unique flight dates from the database.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+
+    Returns:
+    list: A sorted list of available dates.
+    """
+    query = "SELECT DISTINCT month, day FROM flights;"
+    cursor = conn.cursor()
+    cursor.execute(query)
+    dates = [datetime.date(2022, row[0], row[1]) for row in cursor.fetchall()]  # Assume year 2022
+    return sorted(dates)
 
 def get_distance_vs_arr_delay(conn):
     """
@@ -290,8 +337,3 @@ def create_col_local_arrival_time(conn, recalculate=False):
 
 
 
-    
-    
-db_path = "data/flights_database.db"
-conn = sqlite3.connect(db_path)
-create_col_local_arrival_time(conn, recalculate=True)

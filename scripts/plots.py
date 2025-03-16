@@ -16,10 +16,14 @@ from constants import NYC_AIRPORTS
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-import sqlite3
+import sqlite3 as sql
 from math import sin, radians
 
-def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_airport: str):
+
+
+
+
+def plot_destinations_on_day_from_NYC_airport(conn,month: int, day: int, NYC_airport: str):
     """
     Generates a flight path visualization for all flights departing from a given NYC airport 
     on a specific day (month/day). 
@@ -101,8 +105,6 @@ def plot_destinations_on_day_from_NYC_airport(conn, month: int, day: int, NYC_ai
     )
     return fig, missing_airports
 
-import plotly.graph_objects as go
-import sqlite3
 
 def plot_airports_with_and_without_flights(conn):
     """
@@ -212,7 +214,7 @@ def plot_distance_vs_arr_delay(conn):
 
     return fig, correlation
 
-def multi_distance_distribution_gen(*args):
+def multi_distance_distribution_gen(conn,*args):
     """
     Creates multiple histogram subplots in a single figure.
     Each item in *args should be a tuple: (df, title, column_name).
@@ -272,7 +274,7 @@ def multi_distance_distribution_gen(*args):
 
     fig.show()
 
-def plot_wind_impact_vs_air_time(conn, impact_threshold=5):
+def plot_wind_impact_vs_air_time(conn,impact_threshold=5):
     """
     Creates a violin plot to analyze the relationship between wind impact and air_time.
     
@@ -380,12 +382,12 @@ def plot_avg_departure_delay(conn):
 
         return fig
     
-    except sqlite3.Error as e:
-        raise sqlite3.Error(f"Database error occurred: {str(e)}")
+    except sql.Error as e:
+        raise sql.Error(f"Database error occurred: {str(e)}")
     except Exception as e:
         raise Exception(f"An error occurred while creating the plot: {str(e)}")
 
-def analyze_weather_effects_plots(db_filename="flights_database.db"):
+def analyze_weather_effects_plots(conn):
     """
     Analyzes and visualizes the relationship between weather conditions and flight delays
     for different aircraft manufacturers.
@@ -406,7 +408,6 @@ def analyze_weather_effects_plots(db_filename="flights_database.db"):
         >>> fig.show()
     """
     try:
-        conn = sqlite3.connect(db_filename)
         query = """
         SELECT f.dep_delay, p.manufacturer, 
                w.wind_speed, w.wind_dir, w.wind_gust, w.precip
@@ -516,8 +517,8 @@ def analyze_weather_effects_plots(db_filename="flights_database.db"):
 
         return fig
     
-    except sqlite3.Error as e:
-        raise sqlite3.Error(f"Database error occurred: {str(e)}")
+    except sql.Error as e:
+        raise sql.Error(f"Database error occurred: {str(e)}")
     except Exception as e:
         raise Exception(f"An error occurred while creating the plot: {str(e)}")
 
