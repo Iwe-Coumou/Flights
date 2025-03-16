@@ -219,27 +219,44 @@ def plot_airports_with_and_without_flights(conn):
     )
     return fig
 
-
-def plot_distance_vs_arr_delay(conn):
+def   plot_distance_vs_arr_delay(conn, plot_type="scatter"):
     """
-    Creates a scatter plot of flight distance vs. arrival delay, 
+    Creates a plot of flight distance vs. arrival delay, 
     and calculates the correlation between these two variables.
-    Returns (figure, correlation).
+        
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    plot_type (str): Type of plot to generate ("scatter" or "histogram").
+        
+    Returns:
+    tuple: (figure, correlation)
     """
     distance_vs_arr_df = get_distance_vs_arr_delay(conn)
     correlation = distance_vs_arr_df["distance"].corr(distance_vs_arr_df["arr_delay"])
 
-    fig = px.scatter(
-        distance_vs_arr_df,
-        x="distance",
-        y="arr_delay",
-        title="Flight Distance vs Arrival Delay",
-        labels={"distance": "Distance (miles)", "arr_delay": "Arrival Delay (minutes)"},
-        opacity=0.5
-    )
-
-    # Add a reference line at 0 delay
-    fig.add_hline(y=0, line_dash="dash", line_color="red")
+    if plot_type == "scatter":
+        fig = px.scatter(
+            distance_vs_arr_df,
+             x="distance",
+            y="arr_delay",
+            title="Flight Distance vs Arrival Delay",
+            labels={"distance": "Distance (miles)", "arr_delay": "Arrival Delay (minutes)"},
+            opacity=0.5
+        )
+        # Add a reference line at 0 delay
+        fig.add_hline(y=0, line_dash="dash", line_color="red")
+    elif plot_type == "histogram":
+        fig = px.histogram(
+            distance_vs_arr_df,
+            x="distance",
+            y="arr_delay",
+            title="Flight Distance vs Arrival Delay",
+            labels={"distance": "Distance (miles)", "arr_delay": "Arrival Delay (minutes)"},
+            nbins=50,
+            opacity=0.75
+        )
+    else:
+        raise ValueError("Invalid plot_type. Choose either 'scatter' or 'histogram'.")
 
     return fig, correlation
 

@@ -3,6 +3,7 @@ import sqlite3
 import numpy as np
 import pandas as pd
 import datetime
+import plotly.graph_objects as go
 """
 Module with additional utility functions for querying the DB 
 and computing certain values (arrival delays, directions, etc.).
@@ -23,6 +24,33 @@ def get_flight_destinations_from_airport_on_day(conn, month: int, day: int, airp
     """
     cursor.execute(query, (month, day, airport))
     return {row[0] for row in cursor.fetchall()}
+
+
+def get_aircraft_info(conn, tailnum):
+    """
+    Retrieves the manufacturer and model of an aircraft given its tail number (tailnum).
+    
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    tailnum (str): Tail number of the aircraft.
+
+    Returns:
+    dict: Dictionary with 'manufacturer' and 'model' or None if not found.
+    """
+    query = """
+        SELECT manufacturer, model 
+        FROM planes 
+        WHERE tailnum = ?;
+    """
+    cursor = conn.cursor()
+    cursor.execute(query, (tailnum,))
+    result = cursor.fetchone()
+
+    if result:
+        return {"manufacturer": result[0], "model": result[1]}
+    return None
+
+
 
 def top_5_manufacturers(conn, destination_airport: str):
     """
@@ -53,6 +81,7 @@ def top_5_carriers(conn, destination_airport: str):
     """
     return read_sql_query(query, conn, params=(destination_airport,))
 
+
 def get_available_destination_airports(conn, origin_airport):
     """
     Fetches all unique destination airports for a given origin airport.
@@ -69,6 +98,43 @@ def get_available_destination_airports(conn, origin_airport):
     cursor.execute(query, (origin_airport,))
     airports = [row[0] for row in cursor.fetchall()]
     return sorted(airports)
+
+
+
+
+def get_available_dates(conn, origin, destination=None):
+    """
+    Fetches all unique flight dates from the database.
+    If an origin is specified, it filters the dates for that airport.
+    If both origin and destination are specified, it filters dates for that specific route.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin (str): Origin airport code.
+    destination (str, optional): Destination airport code (default is None).
+
+    Returns:
+    list: A sorted list of available dates.
+    """
+    query = """
+        SELECT DISTINCT substr(sched_dep_time, 1, 10) AS flight_date
+        FROM flights
+        WHERE origin = ?
+    """
+    params = [origin]
+
+    if destination:
+        query += " AND dest = ?"
+        params.append(destination)
+
+    query += " ORDER BY flight_date"
+
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    dates = [row[0] for row in cursor.fetchall()]
+    
+    return sorted(dates)
+
 
 def get_top_5_carriers_for_route(conn, origin, destination):
     
@@ -197,6 +263,47 @@ def get_delay_stats_for_route(conn, origin, destination):
 
     return df_by_month, df_by_carrier, df_by_manufacturer
 
+import pandas as pd
+
+def get_flights_on_date_and_route(conn, date, airport_departure, airport_arrival, only_non_cancelled=False):
+    """
+    Fetches all flights that occurred on a specific date and route.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    date (datetime.date or str): Date object.
+    airport_departure (str): Departure airport code.
+    airport_arrival (str): Arrival airport code.
+    only_non_cancelled (bool): If True, filters out cancelled flights.
+
+    Returns:
+    pandas.DataFrame: DataFrame containing the flights.
+    """
+    query = """
+        SELECT * FROM flights
+        WHERE substr(sched_dep_time, 1, 10) = ?
+        AND origin = ? AND dest = ?
+    """
+
+    
+    # Assicuriamoci che il valore della data sia in formato stringa "YYYY-MM-DD"
+    params = [str(date), airport_departure, airport_arrival]
+    print(f"Type of date: {type(date)}, Value: {date}")
+
+
+    if only_non_cancelled:
+        query += " AND canceled = 0"
+
+    print(f"Executing SQL Query: {query} with params {params}")  # Debugging
+
+    df = pd.read_sql_query(query, conn, params=params)
+
+    print(df)  # Debugging: Controlliamo se il DataFrame ha dati
+
+    return df
+
+
+
 
 def get_all_origin_airports(conn):
     """
@@ -214,21 +321,7 @@ def get_all_origin_airports(conn):
     airports = [row[0] for row in cursor.fetchall()]
     return sorted(airports)  # Sorted for better usability
 
-def get_available_dates(conn):
-    """
-    Fetches all unique flight dates from the database.
 
-    Parameters:
-    conn (sqlite3.Connection): Active database connection.
-
-    Returns:
-    list: A sorted list of available dates.
-    """
-    query = "SELECT DISTINCT month, day FROM flights;"
-    cursor = conn.cursor()
-    cursor.execute(query)
-    dates = [datetime.date(2022, row[0], row[1]) for row in cursor.fetchall()]  # Assume year 2022
-    return sorted(dates)
 
 def get_distance_vs_arr_delay(conn):
     """
@@ -479,5 +572,80 @@ def create_col_local_arrival_time(conn, recalculate=False):
     conn.commit()
     print("Updated 'local_arrival_time' column in flights table.")
 
+def get_weather_for_flight(conn, origin, destination, date):
+    """
+    Retrieves wind speed and direction for a given flight based on its departure time.
+
+    Parameters:
+    conn (sqlite3.Connection): Active database connection.
+    origin (str): Departure airport code.
+    destination (str): Arrival airport code.
+    date (str): Date in 'YYYY-MM-DD'.
+
+    Returns:
+    dict: Dictionary containing wind speed and direction.
+    """
+    query = """
+        SELECT w.wind_speed, w.wind_dir
+        FROM weather w
+        JOIN flights f ON w.origin = f.origin AND w.time_hour = f.time_hour
+       WHERE DATE(f.sched_dep_time) = ? AND f.origin = ? AND f.dest = ?
+        LIMIT 1;
+    """
+    cursor = conn.cursor()
+    cursor.execute(query, (date, origin, destination))
+    result = cursor.fetchone()
+
+    if result:
+        return {"wind_speed": result[0], "wind_dir": result[1]}
+    return None
+
+
+
+import plotly.graph_objects as go
+import numpy as np
+
+def plot_wind_direction(direction, wind_speed=1):
+    """
+    Creates a compass visualization for wind direction.
+
+    Parameters:
+    direction (float): Wind direction in degrees.
+    wind_speed (float): Wind speed (optional, to scale the arrow length).
+
+    Returns:
+    plotly.graph_objects.Figure: A polar chart representing wind direction.
+    """
+    # Convert direction to radians
+    angle_rad = np.radians(direction)
+
+    # Define the starting point (center)
+    x_start, y_start = 0, 0  # Start from the center of the graph
+
+    # Define the endpoint based on the direction
+    x_end = np.cos(angle_rad) * wind_speed  # Projection on X
+    y_end = np.sin(angle_rad) * wind_speed  # Projection on Y
+
+    fig = go.Figure()
+
+    # Draw the circular axis
+    fig.add_trace(go.Scatterpolar(
+        r=[0, wind_speed],  # Start from the center
+        theta=[direction, direction],
+        mode="lines",
+        line=dict(color="red", width=3)
+    ))
+
+    fig.update_layout(
+        title="Wind Direction",
+        polar=dict(
+            radialaxis=dict(visible=False, range=[0, wind_speed]),
+            angularaxis=dict(direction="clockwise", tickmode="array", 
+                             tickvals=[0, 90, 180, 270], ticktext=["N", "E", "S", "W"])
+        ),
+        showlegend=False
+    )
+
+    return fig
 
 
