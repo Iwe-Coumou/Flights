@@ -81,6 +81,20 @@ def top_5_carriers(conn, destination_airport: str):
     """
     return read_sql_query(query, conn, params=(destination_airport,))
 
+def top_5_carriers_from_specified_airport(conn, destination_airport: str):
+    """
+    Finds the top 5 airlines for planes flying to a given airport code.
+    """
+    query = """
+        SELECT flights.carrier, COUNT(*) as num_flights 
+        FROM flights 
+        WHERE flights.origin = ?
+        GROUP BY flights.carrier
+        ORDER BY num_flights DESC
+        LIMIT 5;
+    """
+    return read_sql_query(query, conn, params=(destination_airport,))
+
 
 def get_available_destination_airports(conn, origin_airport):
     """

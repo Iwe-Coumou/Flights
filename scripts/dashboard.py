@@ -7,7 +7,7 @@ from plots import *
 from helper_funcs import *
 from data_cleaning import clean_database
 from datetime import datetime, date
-
+selected_flight=None
 def normalize_date(selected_date):
     """Converts selected_date to datetime.date if necessary."""
     if isinstance(selected_date, str):
@@ -18,7 +18,7 @@ def normalize_date(selected_date):
         st.error(f"Unrecognized date format: {selected_date} ({type(selected_date)})")
         return None
 
-
+       
 # ----------------- PAGE STYLING -----------------
 st.set_page_config(layout="wide")  # Wide layout for better spacing
 
@@ -38,6 +38,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
+
+
+
 # ----------------- DATABASE CONNECTION -----------------
 
 # Database Connection
@@ -47,13 +51,20 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 if "conn" not in st.session_state:
-    db_path = os.path.abspath("C:/Users/iweyn/Documents/Uni/Year_2/Data Engineering/Flights/data/flights_database.db")
+    db_path = os.path.abspath("C:/Users/fabio/vu uni/data engeneering/group project flights/Flights/Data/flights_database.db")
     st.session_state.conn = sqlite3.connect(db_path, check_same_thread=False)
 
 conn = st.session_state.conn
 # ----------------- SIDEBAR STYLING -----------------
 with st.sidebar:
     st.header("Options")
+    
+#reset button 
+    if st.button("Reset"):
+        selected_destination = "None"
+        selected_date = "None"
+        selected_flight = "None"
+        
 
     if st.button("Clean Database"):
         clean_database(conn)
@@ -109,7 +120,7 @@ with st.sidebar:
                 selected_flight = str(selected_flight_row["flight"].values[0])  # Ensure it is a string
             else:
                 selected_flight = None
-                st.error("no flight selected, you are in route analysis mode")
+                st.success("no flight selected, you are in route analysis mode")
 
     elif selected_destination != "None":
         st.warning("No flights available for this route on the selected date.")
@@ -198,26 +209,17 @@ if selected_destination == "None":
     with col4:
         
         # Top 5 Airlines by Number of Flights   
-        # Displays the top 5 airlines flying to a selected destination.
+        # Displays the top 5 airlines flying from the selected airport.
         
-        if destination_airports:
-            destination_airport = st.selectbox(
-                "Select destination airport",
-                sorted(destination_airports),  
-                index=0
-            )
-        else:
-            st.warning(f"No destinations found for {selected_airport}. Using default: LAX")
-            destination_airport = "LAX"  
 
-        df_top_carriers = top_5_carriers(conn, destination_airport)
+        df_top_carriers = top_5_carriers_from_specified_airport(conn, selected_airport)
 
         if not df_top_carriers.empty:
             with st.container():
-                st.subheader("🏆 Top 5 Airlines by Number of Flights")
+                st.subheader(f"🏆 Top 5 Airlines from {selected_airport}")
 
                 fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights",
-                                    title=f"Top 5 Airlines for {destination_airport}",
+                                    title=f"Top 5 Airlines from {selected_airport}",
                                     labels={"carrier": "Airline", "num_flights": "Flights"},
                                     color="carrier")
                 st.plotly_chart(fig_carriers, use_container_width=True)
@@ -226,7 +228,7 @@ else:
     fig_route = plot_route_map(conn, selected_airport, selected_destination)
     if fig_route:
         st.plotly_chart(fig_route, use_container_width=True)
-    if selected_flight:
+    if selected_flight=="None":
         flight_data = df_flights[df_flights["flight"].astype(str) == selected_flight].iloc[0]
         st.subheader(f"🛫 Flight Details for {selected_flight}")
         st.write(f"Flight time: {flight_data['air_time']} minutes")
