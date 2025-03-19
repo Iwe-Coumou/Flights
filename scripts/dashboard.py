@@ -88,6 +88,7 @@ with st.sidebar:
 
     if selected_destination != "None":
         show_only_non_cancelled = st.checkbox("Show only non-cancelled flights", value=True, key="show_non_cancelled_checkbox")
+        selected_flight = None
 
         df_flights = get_flights_on_date_and_route(conn, str(selected_date), selected_airport, selected_destination, show_only_non_cancelled)
         if not df_flights.empty and {"flight", "carrier"}.issubset(df_flights.columns):
