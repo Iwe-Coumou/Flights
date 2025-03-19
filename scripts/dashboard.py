@@ -230,18 +230,40 @@ else:
     if selected_flight:
         flight_data = df_flights[df_flights["flight"].astype(str) == selected_flight].iloc[0]
         st.subheader(f"🛫 Flight Details for {selected_flight}")
-        st.write(f"Flight time: {flight_data['air_time']} minutes")
-        st.write(f"Departure delay: {flight_data['dep_delay']} minutes")
-        st.write(f"Arrival delay: {flight_data['arr_delay']} minutes")
-        st.write(f"Distance: {flight_data['distance']} miles")
-        st.write(f"Carrier: {flight_data['carrier']}")
+        with st.expander("Show Flight Details"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("Flight data")
+                st.metric("Flight time", f"{flight_data['air_time']} min")
+                st.metric("Departure delay", f"{flight_data['dep_delay']} min")
+                st.metric("Arrival delay", f"{flight_data['arr_delay']} min")
+                st.metric("Distance", f"{flight_data['distance']} miles")
+                st.metric("Carrier", f"{flight_data['carrier']}")
+            with col2:
+                st.subheader("Average flight data")
+
         tailnum = flight_data["tailnum"]
         aircraft_info = get_aircraft_info(conn, tailnum)
         if aircraft_info:
-            st.write(f"Manufacturer: {aircraft_info['manufacturer']}")
-            st.write(f"Model: {aircraft_info['model']}")
+            with st.expander("Show Aircraft Details"):
+                st.metric("Manufacturer", f"{aircraft_info['manufacturer']}")
+                st.metric("Model", f"{aircraft_info['model']}")
         else:
             st.warning("No aircraft information available.")
+    
+        
+        # st.write(f"Flight time: {flight_data['air_time']} minutes")
+        # st.write(f"Departure delay: {flight_data['dep_delay']} minutes")
+        # st.write(f"Arrival delay: {flight_data['arr_delay']} minutes")
+        # st.write(f"Distance: {flight_data['distance']} miles")
+        # st.write(f"Carrier: {flight_data['carrier']}")
+        # tailnum = flight_data["tailnum"]
+        # aircraft_info = get_aircraft_info(conn, tailnum)
+        # if aircraft_info:
+        #     st.write(f"Manufacturer: {aircraft_info['manufacturer']}")
+        #     st.write(f"Model: {aircraft_info['model']}")
+        # else:
+        #     st.warning("No aircraft information available.")
         st.write(f"Tail number: {flight_data['tailnum']}")
         st.write(f"Origin: {flight_data['origin']}")
         st.write(f"Destination: {flight_data['dest']}")
