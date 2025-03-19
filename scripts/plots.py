@@ -33,10 +33,10 @@ def plot_route_map(conn, origin, destination):
     plotly Figure: Map with flight route.
     """
     cursor = conn.cursor()
-    cursor.execute("SELECT lat, lon FROM airports WHERE faa = ?", (origin,))
+    cursor.execute("SELECT lat, lon, faa FROM airports WHERE faa = ?", (origin,))
     origin_data = cursor.fetchone()
     
-    cursor.execute("SELECT lat, lon FROM airports WHERE faa = ?", (destination,))
+    cursor.execute("SELECT lat, lon, faa FROM airports WHERE faa = ?", (destination,))
     destination_data = cursor.fetchone()
 
     if not origin_data or not destination_data:
@@ -46,11 +46,110 @@ def plot_route_map(conn, origin, destination):
     fig.add_trace(go.Scattergeo(lon=[origin_data[1], destination_data[1]],
                                 lat=[origin_data[0], destination_data[0]],
                                 mode="lines",
-                                line=dict(width=2, color="red")))
+                                line=dict(width=2, color="red"),
+                                hovertext=[f"Origin: {origin_data[2]}", f"Destination: {destination_data[2]}"]))
 
     return fig
 
+def plot_all_destinations_from_NYC_airport(conn, NYC_airport: str):
+    """
+    Generates a flight path visualization for all flights departing 
+    from a given NYC airport (no month/day filter).
 
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        NYC_airport (str): The NYC airport code (e.g., 'JFK', 'LGA', 'EWR').
+
+    Returns:
+        (fig, missing_airports): 
+            fig (go.Figure): Plotly figure of the flight routes.
+            missing_airports (list): List of airport codes not found in the database.
+    """
+    # Check if the airport is recognized
+    if NYC_airport not in NYC_AIRPORTS:
+        print(f"Error: '{NYC_airport}' is not recognized as a NYC airport.")
+        return None, []
+
+    # Retrieve all unique destinations for this airport (no date filter)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT dest FROM flights WHERE origin = ?", (NYC_airport,))
+    results = cursor.fetchall()
+    FAA_codes = [row[0] for row in results]
+
+    # Get info for the home base airport
+    cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (NYC_airport,))
+    home_base_data = cursor.fetchone()
+
+    if not home_base_data:
+        print(f"Error: Home base '{NYC_airport}' not found in the database.")
+        return None, []
+
+    home_base_name, home_base_lat, home_base_lon = home_base_data
+
+    # Prepare lists for plotting
+    lons, lats = [], []
+    dest_lons, dest_lats, dest_names = [], [], []
+
+    # For each destination, gather data and plot lines
+    for code in FAA_codes:
+        cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (code,))
+        airport_data = cursor.fetchone()
+
+        airport_name, airport_lat, airport_lon = airport_data
+        dest_lons.append(airport_lon)
+        dest_lats.append(airport_lat)
+        dest_names.append(f"{airport_name} ({code})")
+
+        # Build the line path (home base -> destination -> None for break)
+        lons.extend([home_base_lon, airport_lon, None])
+        lats.extend([home_base_lat, airport_lat, None])
+
+    # Create the figure
+    fig = go.Figure()
+
+    # Flight paths
+    fig.add_trace(go.Scattergeo(
+        lon=lons,
+        lat=lats,
+        mode='lines',
+        line=dict(width=1, color='black'),
+        opacity=0.7,
+        showlegend=False
+    ))
+
+    # Destination markers
+    fig.add_trace(go.Scattergeo(
+        lon=dest_lons,
+        lat=dest_lats,
+        text=dest_names,
+        hoverinfo='text',
+        mode='markers',
+        name='Destinations',
+        marker=dict(size=6, color='red', opacity=0.85)
+    ))
+
+    # Home base marker
+    fig.add_trace(go.Scattergeo(
+        lon=[home_base_lon],
+        lat=[home_base_lat],
+        text=[home_base_name],
+        hoverinfo='text',
+        mode='markers',
+        name='Home Base',
+        marker=dict(size=10, color='blue')
+    ))
+
+    # Layout settings
+    fig.update_layout(
+        title_text=f'All Flights Departing from {home_base_name} ({NYC_airport})',
+        geo=dict(
+            scope="world",
+            showland=True,
+            landcolor="rgb(243, 243, 243)"
+        )
+    )
+
+    return fig
 
 def plot_destinations_on_day_from_NYC_airport(conn,month: int, day: int, NYC_airport: str):
     """
