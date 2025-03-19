@@ -4,13 +4,12 @@ import numpy as np
 import pandas as pd
 import datetime
 import plotly.graph_objects as go
+from pandas import read_sql_query
+
 """
 Module with additional utility functions for querying the DB 
 and computing certain values (arrival delays, directions, etc.).
 """
-
-import numpy as np
-from pandas import read_sql_query
 
 def get_flight_destinations_from_airport_on_day(conn, month: int, day: int, airport: str) -> set:
     """
@@ -24,7 +23,6 @@ def get_flight_destinations_from_airport_on_day(conn, month: int, day: int, airp
     """
     cursor.execute(query, (month, day, airport))
     return {row[0] for row in cursor.fetchall()}
-
 
 def get_aircraft_info(conn, tailnum):
     """
@@ -49,8 +47,6 @@ def get_aircraft_info(conn, tailnum):
     if result:
         return {"manufacturer": result[0], "model": result[1]}
     return None
-
-
 
 def top_5_manufacturers(conn, destination_airport: str):
     """
@@ -81,7 +77,6 @@ def top_5_carriers(conn, destination_airport: str):
     """
     return read_sql_query(query, conn, params=(destination_airport,))
 
-
 def get_available_destination_airports(conn, origin_airport):
     """
     Fetches all unique destination airports for a given origin airport.
@@ -98,9 +93,6 @@ def get_available_destination_airports(conn, origin_airport):
     cursor.execute(query, (origin_airport,))
     airports = [row[0] for row in cursor.fetchall()]
     return sorted(airports)
-
-
-
 
 def get_available_dates(conn, origin, destination=None):
     """
@@ -134,7 +126,6 @@ def get_available_dates(conn, origin, destination=None):
     dates = [row[0] for row in cursor.fetchall()]
     
     return sorted(dates)
-
 
 def get_top_5_carriers_for_route(conn, origin, destination):
     
@@ -189,6 +180,7 @@ def get_weather_stats_for_route(conn, origin, destination):
         "avg_wind_speed": result[0] if result else None,
         "avg_temp": result[1] if result else None,
     }
+
 def get_flight_counts_for_route(conn, origin, destination):
     """
     Fetches average daily flights and total flights per month for a given route.
@@ -266,8 +258,6 @@ def get_delay_stats_for_route(conn, origin, destination):
 
     return df_by_month, df_by_carrier, df_by_manufacturer
 
-import pandas as pd
-
 def get_flights_on_date_and_route(conn, date, airport_departure, airport_arrival, only_non_cancelled=False):
     """
     Fetches all flights that occurred on a specific date and route.
@@ -305,9 +295,6 @@ def get_flights_on_date_and_route(conn, date, airport_departure, airport_arrival
 
     return df
 
-
-
-
 def get_all_origin_airports(conn):
     """
     Fetches all unique origin airports from the flights database.
@@ -323,8 +310,6 @@ def get_all_origin_airports(conn):
     cursor.execute(query)
     airports = [row[0] for row in cursor.fetchall()]
     return sorted(airports)  # Sorted for better usability
-
-
 
 def get_distance_vs_arr_delay(conn):
     """
@@ -384,9 +369,6 @@ def get_airports_locations(conn, airport_list=None):
         cursor.execute(query)
     return cursor.fetchall()
 
-
-
-
 def create_flight_direction_mapping_table(conn):
     """
     Creates a new table 'flight_direction_map' in the database that stores each unique
@@ -419,7 +401,6 @@ def create_flight_direction_mapping_table(conn):
     
     # Step 4: Create (or replace) the flight_direction_map table in the database.
     mapping_df.to_sql("flight_direction_map", conn, if_exists="replace", index=False)
-
 
 def compute_wind_impact(flight_direction, wind_direction, wind_speed):
     """
@@ -504,8 +485,6 @@ def amount_of_delayed_flights(conn, start_month, end_month, destination):
 
     return amount_of_delayed_flights
 
-
-
 def create_col_with_speed(conn):
     c = conn.cursor()
     
@@ -527,8 +506,7 @@ def create_col_with_speed(conn):
     """)
     
     conn.commit()
-    
-    
+      
 def create_col_local_arrival_time(conn, recalculate=False):
     """
     Updates the 'local_arrival_time' column in the flights table, 
@@ -603,10 +581,50 @@ def get_weather_for_flight(conn, origin, destination, date):
         return {"wind_speed": result[0], "wind_dir": result[1]}
     return None
 
+def get_average_flight_stats_for_route(conn: sqlite3.Connection, origin: str, destination: str) -> dict:
+    """
+    Retrieves the average flight time, average departure delay, and average arrival delay
+    for flights between a given origin and destination.
 
+    Parameters:
+        conn (sqlite3.Connection): SQLite database connection
+        origin (str): Origin airport code
+        destination (str): Destination airport code
 
-import plotly.graph_objects as go
-import numpy as np
+    Returns:
+        dict: {
+            "avg_flight_time": float or None,
+            "avg_dep_delay": float or None,
+            "avg_arr_delay": float or None
+        }
+        If no flights exist for the route, the dictionary values may be None.
+    """
+    cursor = conn.cursor()
+    query = """
+        SELECT 
+            AVG(air_time)          AS avg_flight_time,
+            AVG(dep_delay)         AS avg_dep_delay,
+            AVG(arr_delay)         AS avg_arr_delay
+        FROM flights
+        WHERE origin = ? 
+          AND dest = ?
+          AND canceled = 0
+    """
+    cursor.execute(query, (origin, destination))
+    row = cursor.fetchone()
+
+    if row:
+        return {
+            "avg_flight_time": row[0],
+            "avg_dep_delay": row[1],
+            "avg_arr_delay": row[2]
+        }
+    else:
+        return {
+            "avg_flight_time": None,
+            "avg_dep_delay": None,
+            "avg_arr_delay": None
+        }
 
 def plot_wind_direction(direction, wind_speed=1):
     """
@@ -650,5 +668,3 @@ def plot_wind_direction(direction, wind_speed=1):
     )
 
     return fig
-
-
