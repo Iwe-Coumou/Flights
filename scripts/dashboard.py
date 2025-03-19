@@ -284,7 +284,8 @@ else:
         df_top_carriers = get_top_5_carriers_for_route(conn, selected_airport, selected_destination)
         if not df_top_carriers.empty:
             st.subheader("🏆 Top 5 Airlines on This Route")
-            fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights", title=f"Top 5 Airlines for {selected_airport} → {selected_destination}", labels={"carrier": "Airline", "num_flights": "Flights"}, color="carrier")
+            fig_carriers = px.bar(df_top_carriers, x="name", y="num_flights", title=f"Top 5 Airlines for {selected_airport} → {selected_destination}", labels={"name": "Airline", "num_flights": "Flights"}, color="name")
+            fig_carriers.update_layout(showlegend=False)
             st.plotly_chart(fig_carriers, use_container_width=True)
         
         weather_stats = get_weather_stats_for_route(conn, selected_airport, selected_destination)
@@ -314,8 +315,10 @@ else:
             st.plotly_chart(fig_delay_month, use_container_width=True)
         with col2:
             st.subheader("✈️ Average Delay by Airline")
-            fig_delay_carrier = px.bar(df_by_carrier, x="carrier", y="avg_delay", title="Average Delay by Carrier", labels={"carrier": "Airline", "avg_delay": "Average Delay (min)"}, color="carrier")
+            fig_delay_carrier = px.bar(df_by_carrier, x="name", y="avg_delay", title="Average Delay by Carrier", labels={"name": "Airline", "avg_delay": "Average Delay (min)"}, color="name")
+            fig_delay_carrier.update_layout(showlegend=False)
             st.plotly_chart(fig_delay_carrier, use_container_width=True)
         st.subheader("🏭 Average Delay by Aircraft Manufacturer")
         fig_delay_manufacturer = px.bar(df_by_manufacturer, x="manufacturer", y="avg_delay", title="Average Delay by Manufacturer", labels={"manufacturer": "Aircraft Manufacturer", "avg_delay": "Average Delay (min)"}, color="manufacturer")
+        fig_delay_manufacturer.update_layout(showlegend=False)
         st.plotly_chart(fig_delay_manufacturer, use_container_width=True)

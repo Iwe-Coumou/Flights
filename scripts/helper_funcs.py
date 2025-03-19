@@ -150,10 +150,11 @@ def get_top_5_carriers_for_route(conn, origin, destination):
     pandas.DataFrame: DataFrame with carrier and number of flights.
     """
     query = """
-        SELECT carrier, COUNT(*) as num_flights 
-        FROM flights 
+        SELECT airlines.name, COUNT(*) as num_flights 
+        FROM flights
+        JOIN airlines ON flights.carrier = airlines.carrier 
         WHERE origin = ? AND dest = ?
-        GROUP BY carrier
+        GROUP BY airlines.name
         ORDER BY num_flights DESC
         LIMIT 5;
     """
@@ -242,10 +243,11 @@ def get_delay_stats_for_route(conn, origin, destination):
     """
 
     query_by_carrier = """
-        SELECT carrier, AVG(arr_delay) AS avg_delay
+        SELECT airlines.name, AVG(arr_delay) AS avg_delay
         FROM flights 
+        JOIN airlines ON flights.carrier = airlines.carrier
         WHERE origin = ? AND dest = ?
-        GROUP BY carrier
+        GROUP BY airlines.name
         ORDER BY avg_delay DESC;
     """
 
