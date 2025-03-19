@@ -89,11 +89,15 @@ def plot_all_destinations_from_NYC_airport(conn, NYC_airport: str):
     # Prepare lists for plotting
     lons, lats = [], []
     dest_lons, dest_lats, dest_names = [], [], []
+    missing_airports = []
 
     # For each destination, gather data and plot lines
     for code in FAA_codes:
         cursor.execute("SELECT name, lat, lon FROM airports WHERE faa = ?", (code,))
         airport_data = cursor.fetchone()
+        if not airport_data:
+            missing_airports.append(code)
+            continue
 
         airport_name, airport_lat, airport_lon = airport_data
         dest_lons.append(airport_lon)
@@ -149,7 +153,7 @@ def plot_all_destinations_from_NYC_airport(conn, NYC_airport: str):
         )
     )
 
-    return fig
+    return fig, missing_airports
 
 def plot_destinations_on_day_from_NYC_airport(conn,month: int, day: int, NYC_airport: str):
     """

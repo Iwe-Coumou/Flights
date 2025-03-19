@@ -158,6 +158,7 @@ def get_top_5_carriers_for_route(conn, origin, destination):
         LIMIT 5;
     """
     return read_sql_query(query, conn, params=(origin, destination))
+
 def get_weather_stats_for_route(conn, origin, destination):
     
     """
