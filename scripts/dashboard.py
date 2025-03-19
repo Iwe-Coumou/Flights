@@ -99,6 +99,7 @@ with st.sidebar:
 
     if selected_destination != "None":
         show_only_non_cancelled = st.checkbox("Show only non-cancelled flights", value=True, key="show_non_cancelled_checkbox")
+        selected_flight = None
 
         df_flights = get_flights_on_date_and_route(conn, str(selected_date), selected_airport, selected_destination, show_only_non_cancelled)
         if not df_flights.empty and {"flight", "carrier"}.issubset(df_flights.columns):
@@ -230,23 +231,38 @@ else:
         st.plotly_chart(fig_route, use_container_width=True)
     if selected_flight=="None":
         flight_data = df_flights[df_flights["flight"].astype(str) == selected_flight].iloc[0]
+        origin, destination = flight_data["origin"], flight_data["dest"]
+        average_flight_data = get_average_flight_stats_for_route(conn, origin, destination)
+
         st.subheader(f"🛫 Flight Details for {selected_flight}")
-        st.write(f"Flight time: {flight_data['air_time']} minutes")
-        st.write(f"Departure delay: {flight_data['dep_delay']} minutes")
-        st.write(f"Arrival delay: {flight_data['arr_delay']} minutes")
-        st.write(f"Distance: {flight_data['distance']} miles")
-        st.write(f"Carrier: {flight_data['carrier']}")
+        with st.expander("Show Flight Details"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("Flight data")
+                st.metric("Flight time", f"{flight_data['air_time']} min")
+                st.metric("Departure delay", f"{flight_data['dep_delay']} min")
+                st.metric("Arrival delay", f"{flight_data['arr_delay']} min")
+                st.metric("Distance", f"{flight_data['distance']} miles")
+                st.metric("Carrier", f"{flight_data['carrier']}")
+                st.metric("Scheduled Departure Time", f"{flight_data['sched_dep_time']}")
+            with col2:
+                st.subheader("Average flight data")
+                st.metric("Flight time", f"{round(average_flight_data['avg_flight_time'],2)} min")
+                st.metric("Departure delay", f"{round(average_flight_data['avg_dep_delay'], 2)} min")
+                st.metric("Arrival delay", f"{round(average_flight_data['avg_arr_delay'], 2)} min")
+
         tailnum = flight_data["tailnum"]
         aircraft_info = get_aircraft_info(conn, tailnum)
         if aircraft_info:
-            st.write(f"Manufacturer: {aircraft_info['manufacturer']}")
-            st.write(f"Model: {aircraft_info['model']}")
+            with st.expander("Show Aircraft Details"):
+                st.metric("Manufacturer", f"{aircraft_info['manufacturer']}")
+                st.metric("Model", f"{aircraft_info['model']}")
+                st.metric("Tail number", f"{flight_data['tailnum']}")
+                st.metric("Origin", f"{flight_data['origin']}")
+                st.metric("Destination", f"{flight_data['dest']}")
         else:
             st.warning("No aircraft information available.")
-        st.write(f"Tail number: {flight_data['tailnum']}")
-        st.write(f"Origin: {flight_data['origin']}")
-        st.write(f"Destination: {flight_data['dest']}")
-        st.write(f"Scheduled departure time: {flight_data['sched_dep_time']}")
+    
 
         # ---- WEATHER CONDITIONS ----
         weather_data = get_weather_for_flight(conn, selected_airport, selected_destination, str(selected_date))
@@ -285,7 +301,8 @@ else:
         df_top_carriers = get_top_5_carriers_for_route(conn, selected_airport, selected_destination)
         if not df_top_carriers.empty:
             st.subheader("🏆 Top 5 Airlines on This Route")
-            fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights", title=f"Top 5 Airlines for {selected_airport} → {selected_destination}", labels={"carrier": "Airline", "num_flights": "Flights"}, color="carrier")
+            fig_carriers = px.bar(df_top_carriers, x="name", y="num_flights", title=f"Top 5 Airlines for {selected_airport} → {selected_destination}", labels={"name": "Airline", "num_flights": "Flights"}, color="name")
+            fig_carriers.update_layout(showlegend=False)
             st.plotly_chart(fig_carriers, use_container_width=True)
         
         weather_stats = get_weather_stats_for_route(conn, selected_airport, selected_destination)
@@ -315,8 +332,10 @@ else:
             st.plotly_chart(fig_delay_month, use_container_width=True)
         with col2:
             st.subheader("✈️ Average Delay by Airline")
-            fig_delay_carrier = px.bar(df_by_carrier, x="carrier", y="avg_delay", title="Average Delay by Carrier", labels={"carrier": "Airline", "avg_delay": "Average Delay (min)"}, color="carrier")
+            fig_delay_carrier = px.bar(df_by_carrier, x="name", y="avg_delay", title="Average Delay by Carrier", labels={"name": "Airline", "avg_delay": "Average Delay (min)"}, color="name")
+            fig_delay_carrier.update_layout(showlegend=False)
             st.plotly_chart(fig_delay_carrier, use_container_width=True)
         st.subheader("🏭 Average Delay by Aircraft Manufacturer")
         fig_delay_manufacturer = px.bar(df_by_manufacturer, x="manufacturer", y="avg_delay", title="Average Delay by Manufacturer", labels={"manufacturer": "Aircraft Manufacturer", "avg_delay": "Average Delay (min)"}, color="manufacturer")
+        fig_delay_manufacturer.update_layout(showlegend=False)
         st.plotly_chart(fig_delay_manufacturer, use_container_width=True)
