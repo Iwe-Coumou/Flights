@@ -7,7 +7,7 @@ from plots import *
 from helper_funcs import *
 from data_cleaning import clean_database
 from datetime import datetime, date
-selected_flight=None
+
 def normalize_date(selected_date):
     """Converts selected_date to datetime.date if necessary."""
     if isinstance(selected_date, str):
@@ -59,13 +59,6 @@ conn = st.session_state.conn
 with st.sidebar:
     st.header("Options")
     
-#reset button 
-    if st.button("Reset"):
-        selected_destination = "None"
-        selected_date = "None"
-        selected_flight = "None"
-        
-
     if st.button("Clean Database"):
         clean_database(conn)
         st.success("Database cleaned successfully!")
@@ -115,7 +108,7 @@ with st.sidebar:
             )
 
             # Extract only the flight number (removing the carrier)
-            selected_flight_row = df_flights[df_flights["flight_display"] == selected_flight_display]
+            selected_flight_row = df_flights[df_flights["flight_display"].astype(str) == str(selected_flight_display)]
 
             if not selected_flight_row.empty:
                 selected_flight = str(selected_flight_row["flight"].values[0])  # Ensure it is a string
@@ -229,7 +222,7 @@ else:
     fig_route = plot_route_map(conn, selected_airport, selected_destination)
     if fig_route:
         st.plotly_chart(fig_route, use_container_width=True)
-    if selected_flight=="None":
+    if selected_flight:
         flight_data = df_flights[df_flights["flight"].astype(str) == selected_flight].iloc[0]
         origin, destination = flight_data["origin"], flight_data["dest"]
         average_flight_data = get_average_flight_stats_for_route(conn, origin, destination)
