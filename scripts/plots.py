@@ -33,10 +33,10 @@ def plot_route_map(conn, origin, destination):
     plotly Figure: Map with flight route.
     """
     cursor = conn.cursor()
-    cursor.execute("SELECT lat, lon FROM airports WHERE faa = ?", (origin,))
+    cursor.execute("SELECT lat, lon, faa FROM airports WHERE faa = ?", (origin,))
     origin_data = cursor.fetchone()
     
-    cursor.execute("SELECT lat, lon FROM airports WHERE faa = ?", (destination,))
+    cursor.execute("SELECT lat, lon, faa FROM airports WHERE faa = ?", (destination,))
     destination_data = cursor.fetchone()
 
     if not origin_data or not destination_data:
@@ -46,7 +46,8 @@ def plot_route_map(conn, origin, destination):
     fig.add_trace(go.Scattergeo(lon=[origin_data[1], destination_data[1]],
                                 lat=[origin_data[0], destination_data[0]],
                                 mode="lines",
-                                line=dict(width=2, color="red")))
+                                line=dict(width=2, color="red"),
+                                hovertext=[f"Origin: {origin_data[2]}", f"Destination: {destination_data[2]}"]))
 
     return fig
 
