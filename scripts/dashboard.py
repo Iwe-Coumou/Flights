@@ -18,6 +18,7 @@ def normalize_date(selected_date):
         st.error(f"Unrecognized date format: {selected_date} ({type(selected_date)})")
         return None
 
+
 # ----------------- PAGE STYLING -----------------
 st.set_page_config(layout="wide")  # Wide layout for better spacing
 
@@ -76,8 +77,12 @@ with st.sidebar:
         st.warning(f"No available dates for flights from {selected_airport} to {selected_destination}.")
         selected_date = None
     else:
+        available_dates = ["None"] + available_dates  # Add "None" option
         selected_date = st.selectbox("Here you can see all of the dates that have at least one flight and you can select one for a finer search", available_dates, index=0, key="sidebar_date")
-        selected_date = normalize_date(selected_date)  # Normalize the date
+        if selected_date == "None":
+            selected_date = None
+        else:
+            selected_date = normalize_date(selected_date)  # Normalize the date
 
     df_flights = pd.DataFrame()
 
@@ -92,7 +97,7 @@ with st.sidebar:
             # Visual selection with carrier and flight number
             selected_flight_display = st.selectbox(
                 "Select a specific flight",
-                df_flights["flight_display"].tolist(),
+                ["None"] + df_flights["flight_display"].tolist(),
                 index=0,
                 key="sidebar_flight_selector"
             )
@@ -104,7 +109,7 @@ with st.sidebar:
                 selected_flight = str(selected_flight_row["flight"].values[0])  # Ensure it is a string
             else:
                 selected_flight = None
-                st.error("Error: Flight not found in the dataset.")
+                st.error("no flight selected, you are in route analysis mode")
 
     elif selected_destination != "None":
         st.warning("No flights available for this route on the selected date.")
@@ -132,16 +137,15 @@ if selected_destination == "None":
         # Flight Map
         # This section displays the flight map for departures from a selected NYC airport on a given date.
         
-        # Fetch destinations dynamically based on selected airport and date
         if selected_date:
+            # Fetch destinations dynamically based on selected airport and date
             month, day = selected_date.month, selected_date.day
+            destination_airports = get_flight_destinations_from_airport_on_day(conn, month, day, selected_airport)
+            # Generate Flight Map
+            fig, missing = plot_destinations_on_day_from_NYC_airport(conn, month, day, selected_airport)
         else:
-            st.stop()  # Stops the execution if the datetime is not available
-
-        destination_airports = get_flight_destinations_from_airport_on_day(conn, month, day, selected_airport)
-
-        # Generate Flight Map
-        fig, missing = plot_destinations_on_day_from_NYC_airport(conn, month, day, selected_airport)
+            # Generate Flight Map for all destinations
+            fig, missing = plot_all_destinations_from_NYC_airport(conn, selected_airport)
 
         if fig:
             with st.container():
@@ -150,33 +154,14 @@ if selected_destination == "None":
 
                 if len(missing) > 0:
                     st.warning(f"Missing airports in database: {missing}")
-
     with col2:
-        
-        # Top 5 Airlines by Number of Flights   
-        # Displays the top 5 airlines flying to a selected destination.
-        
-        if destination_airports:
-            destination_airport = st.selectbox(
-                "Select destination airport",
-                sorted(destination_airports),  
-                index=0
-            )
-        else:
-            st.warning(f"No destinations found for {selected_airport}. Using default: LAX")
-            destination_airport = "LAX"  
 
-        df_top_carriers = top_5_carriers(conn, destination_airport)
+        ## Additional Metric (Future Expansion)    
+        # This space can be used for extra analysis in the future.
 
-        if not df_top_carriers.empty:
-            with st.container():
-                st.subheader("🏆 Top 5 Airlines by Number of Flights")
-
-                fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights",
-                                    title=f"Top 5 Airlines for {destination_airport}",
-                                    labels={"carrier": "Airline", "num_flights": "Flights"},
-                                    color="carrier")
-                st.plotly_chart(fig_carriers, use_container_width=True)
+        with st.container():
+            st.subheader("✈️ Additional Metric (Future Expansion)")
+            st.write("This space can be used for extra analysis in the future.")
 
     # ----------------- MIDDLE FULL-WIDTH BLOCK -----------------
 
@@ -211,13 +196,31 @@ if selected_destination == "None":
                 st.write(f"Correlation between Distance and Arrival Delay: {correlation:.2f}")
 
     with col4:
+        
+        # Top 5 Airlines by Number of Flights   
+        # Displays the top 5 airlines flying to a selected destination.
+        
+        if destination_airports:
+            destination_airport = st.selectbox(
+                "Select destination airport",
+                sorted(destination_airports),  
+                index=0
+            )
+        else:
+            st.warning(f"No destinations found for {selected_airport}. Using default: LAX")
+            destination_airport = "LAX"  
 
-        ## Additional Metric (Future Expansion)    
-        # This space can be used for extra analysis in the future.
+        df_top_carriers = top_5_carriers(conn, destination_airport)
 
-        with st.container():
-            st.subheader("✈️ Additional Metric (Future Expansion)")
-            st.write("This space can be used for extra analysis in the future.")
+        if not df_top_carriers.empty:
+            with st.container():
+                st.subheader("🏆 Top 5 Airlines by Number of Flights")
+
+                fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights",
+                                    title=f"Top 5 Airlines for {destination_airport}",
+                                    labels={"carrier": "Airline", "num_flights": "Flights"},
+                                    color="carrier")
+                st.plotly_chart(fig_carriers, use_container_width=True)
 else:
 
     fig_route = plot_route_map(conn, selected_airport, selected_destination)
