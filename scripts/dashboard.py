@@ -304,20 +304,22 @@ else:
                 st.write(f"Average Temperature: {weather_stats['avg_temp']:.2f}°C")
             else:
                 st.write("Average Temperature: No data available")
-            
-            selected_chart = st.selectbox("Select weather chart", 
-                                          ["Precipitation", "Visibility", "Wind speed", ], 
-                                          index=0, key="weather chart")
-            
-            fig_dict = {"Precipitation": None,
-                        "Visibility": None,
-                        "Wind speed": None}
-            col1, col2 = st.columns(2)
-            with col1:
-                fig_avg_delay_hour = plot_avg_delay_by_hour(conn, selected_date.month, selected_date.day)
-                st.plotly_chart(fig_avg_delay_hour, use_container_width=True)
-            with col2:
-                st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
+            if selected_date:
+
+                selected_chart = st.selectbox("Select weather chart", 
+                                            ["Precipitation", "Visibility", "Wind Speed", "Wind Gust"], 
+                                            index=0, key="weather chart")
+                
+                fig_dict = {"Precipitation": plot_avg_precip_by_hour(conn, selected_date.month, selected_date.day),
+                            "Visibility": plot_avg_visibility_by_hour(conn, selected_date.month, selected_date.day),
+                            "Wind Speed": plot_avg_wind_speed_by_hour(conn, selected_date.month, selected_date.day),
+                            "Wind Gust": plot_avg_wind_gust_by_hour(conn, selected_date.month, selected_date.day)}
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig_avg_delay_hour = plot_avg_delay_by_hour(conn, selected_date.month, selected_date.day)
+                    st.plotly_chart(fig_avg_delay_hour, use_container_width=True)
+                with col2:
+                    st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
             
 
         else:
