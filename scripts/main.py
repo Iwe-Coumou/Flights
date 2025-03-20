@@ -37,7 +37,6 @@ def main():
     # destination = "ATL"
     # top_5 = top_5_manufacturers(conn, destination)
     # print(top_5)
-
  
     distance_vs_arr_fig, correlation = plot_distance_vs_arr_delay(conn)   
     if distance_vs_arr_fig:
@@ -57,7 +56,7 @@ def main():
     conn.close()
 
     print("aaaaa")
-    
+
     
 if __name__ == "__main__":
     

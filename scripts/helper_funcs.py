@@ -192,15 +192,15 @@ def get_ny_origin_airports(conn):
 
     return df_origins
 
-def amount_of_delayed_flights(conn, start_month, end_month, destination):
+def amount_of_delayed_flights(conn, start_month, end_month, destination=None):
     """
-    Calculates the amount of delayed flights to the chosen destination.
+    Calculates the amount of delayed flights to the chosen destination, or no destination, thus total amount of delayed flights.
 
     Parameters: 
     df (pandas.DataFrame): DataFrame containing flights with flight direction.
     start_month: beginning of the range months.
     end_month: ending of the range months.
-    destination: the destination.
+    destination (str, optional): The destination airport code. If None, calculates for all destinations.
 
     Returns:
     pandas.DataFrame: Updated DataFrame with the amount of delayed flights.
@@ -210,14 +210,17 @@ def amount_of_delayed_flights(conn, start_month, end_month, destination):
 
     min_delay = 0
 
-    query = f"SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dest = ? AND dep_delay > ?;"
-    cursor.execute(query, (start_month, end_month, destination, min_delay))
+    if destination:
+        query = """SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dest = ? AND dep_delay > ?;"""
+        cursor.execute(query, (start_month, end_month, destination, min_delay))
+
+    else:
+        query = """SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dep_delay > ?;"""
+        cursor.execute(query, (start_month, end_month, min_delay))
 
     amount_of_delayed_flights = cursor.fetchone()[0]
 
     return amount_of_delayed_flights
-
-
 
 def create_col_with_speed(conn):
     c = conn.cursor()
@@ -288,10 +291,80 @@ def create_col_local_arrival_time(conn, recalculate=False):
     conn.commit()
     print("Updated 'local_arrival_time' column in flights table.")
 
+def avg_departure_delay_month(conn, start_month, end_month, airline:None):
+    """
+    Calculates the average departure delay for all flights in the specified months.
+
+    Parameters: 
+    conn (sqlite3.Connection): Database connection.
+    start_month: beginning of the range months.
+    end_month: ending of the range months.
+    airline (str, optional): The airline code for which to calculate the average delay. If none, calculates for all airlines.
+
+    Returns:
+    float: The average departure delay for all flights in the entire year.
+    """
+    cursor = conn.cursor()
+
+    if airline:
+        query = """SELECT AVG(dep_delay) FROM flights WHERE carrier = ? AND month BETWEEN ? AND ?;"""  
+        cursor.execute(query, (airline, start_month, end_month))
+    else:
+        query = """SELECT AVG(dep_delay) FROM flights WHERE month BETWEEN ? AND ?;""" 
+        cursor.execute(query, (start_month, end_month))
+    
+    avg_delay = cursor.fetchone()[0]
+
+    return round(avg_delay, 3) if avg_delay is not None else None
+
+def number_flights_airline(conn, start_month, end_month, airline:None):
+    """
+    Calculates the number of flights for the sepcified months and (optional) airline.
+
+    Parameters: 
+    conn (sqlite3.Connection): Database connection.
+    start_month: beginning of the range months.
+    end_month: ending of the range months.
+    airline (str, optional): The airline code for which to calculate the average delay. If none, calculates for all airlines.
+
+    Returns:
+    Integer: The number of flights for the given months and (optional) airline.
+    """
+    cursor = conn.cursor()
+
+    if airline:
+        query = """SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND carrier = ?;"""
+        cursor.execute(query, (start_month, end_month, airline))
+    else:
+        query = """SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ?;"""
+        cursor.execute(query, (start_month, end_month))
+
+    number_flights = cursor.fetchone()[0]
+
+    return number_flights if number_flights is not None else None
+
+def avg_dep_delay_day(conn, month: int, day: int):
+    """
+    Calculates the average departure delay on the specified day.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    month(int): The specified month.
+    day(int): The specified day.
+
+    Returns: 
+    float: The average departure delay on the specified day.
+    """
+    cursor = conn.cursor()
+
+    query = """SELECT AVG(dep_delay) FROM flights WHERE day = ? AND month = ?;"""
+    cursor.execute(query, (month, day))
+
+    avg_dep_delay = cursor.fetchone()[0]
+
+    return avg_dep_delay
 
 
-    
-    
 db_path = "data/flights_database.db"
 conn = sqlite3.connect(db_path)
 create_col_local_arrival_time(conn, recalculate=True)

@@ -188,7 +188,6 @@ def plot_airports_with_and_without_flights(conn):
     )
     return fig
 
-
 def plot_distance_vs_arr_delay(conn):
     """
     Creates a scatter plot of flight distance vs. arrival delay, 
@@ -521,3 +520,54 @@ def analyze_weather_effects_plots(db_filename="flights_database.db"):
     except Exception as e:
         raise Exception(f"An error occurred while creating the plot: {str(e)}")
 
+  
+def plot_avg_delay_by_hour(conn, month: int, day: int):
+    """
+    Plots the average departure delay grouped by hour for a specific day.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    month (int): The specified month.
+    day (int): The specified day.
+
+    Returns:
+    plotly.graph_objects.Figure: A bar plot showing the average departure delay by hour.
+    """
+    cursor = conn.cursor()
+
+    query = """
+    SELECT strftime('%H', sched_dep_time ) AS hour, AVG(dep_delay) AS avg_delay
+    FROM flights
+    WHERE month = ? AND day = ? AND sched_dep_time  IS NOT NULL
+    GROUP BY hour
+    ORDER BY hour;
+    """
+    cursor.execute(query, (month, day))
+    result = cursor.fetchall()
+
+    if not result:
+        print("No data available for the specified day.")
+        return
+
+    df = pd.DataFrame(result, columns=['hour', 'avg_delay'])
+    df['hour'] = df['hour'].astype(int)
+
+    all_hours = pd.DataFrame({'hour': range(24)})
+    df = pd.merge(all_hours, df, on='hour', how='left').fillna(0)
+
+    fig = px.bar(
+        df,
+        x='hour',
+        y='avg_delay',
+        title=f"Average Departure Delay by Hour on {month}/{day}",
+        labels={'hour': 'Hour of the Day (24-Hour Format)', 'avg_delay': 'Average Delay (Minutes)'},
+        color='avg_delay',
+        color_continuous_scale='Blues'
+    )
+    fig.update_layout(
+        xaxis=dict(tickmode='linear', dtick=1),
+        yaxis=dict(title='Average Delay (Minutes)'),
+        bargap=0.2
+    )
+
+    return fig
