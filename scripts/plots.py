@@ -722,3 +722,207 @@ def plot_avg_delay_by_hour(conn, month: int, day: int):
     )
 
     return fig
+
+def plot_avg_visibility_by_hour(conn, month: int, day: int):
+    """
+    Plots the average visibility (visib) grouped by hour for a specific day.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    month (int): The specified month.
+    day (int): The specified day.
+
+    Returns:
+    plotly.graph_objects.Figure: A bar plot showing the average visibility by hour.
+    """
+    cursor = conn.cursor()
+
+    query = """
+    SELECT hour, AVG(visib) AS avg_visib
+    FROM weather
+    WHERE month = ? AND day = ? AND visib IS NOT NULL
+    GROUP BY hour
+    ORDER BY hour;
+    """
+    cursor.execute(query, (month, day))
+    result = cursor.fetchall()
+
+    if not result:
+        print("No data available for the specified day.")
+        return
+
+    df = pd.DataFrame(result, columns=['hour', 'avg_visib'])
+    df['hour'] = df['hour'].astype(int)
+
+    all_hours = pd.DataFrame({'hour': range(24)})
+    df = pd.merge(all_hours, df, on='hour', how='left').fillna(0)
+
+    fig = px.bar(
+        df,
+        x='hour',
+        y='avg_visib',
+        title=f"Average Visibility by Hour on {month}/{day}",
+        labels={'hour': 'Hour of the Day (24-Hour Format)', 'avg_visib': 'Average Visibility (Miles)'},
+        color='avg_visib',
+        color_continuous_scale='Blues'
+    )
+    fig.update_layout(
+        xaxis=dict(tickmode='linear', dtick=1),
+        yaxis=dict(title='Average Visibility (Miles)'),
+        bargap=0.2
+    )
+
+    return fig
+
+def plot_avg_wind_speed_by_hour(conn, month: int, day: int):
+    """
+    Plots the average wind speed grouped by hour for a specific day.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    month (int): The specified month.
+    day (int): The specified day.
+
+    Returns:
+    plotly.graph_objects.Figure: A bar plot showing the average wind speed by hour.
+    """
+    cursor = conn.cursor()
+
+    query = """
+    SELECT hour, AVG(wind_speed) AS avg_wind_speed
+    FROM weather
+    WHERE month = ? AND day = ? AND wind_speed IS NOT NULL
+    GROUP BY hour
+    ORDER BY hour;
+    """
+    cursor.execute(query, (month, day))
+    result = cursor.fetchall()
+
+    if not result:
+        print("No data available for the specified day.")
+        return
+
+    df = pd.DataFrame(result, columns=['hour', 'avg_wind_speed'])
+    df['hour'] = df['hour'].astype(int)
+
+    all_hours = pd.DataFrame({'hour': range(24)})
+    df = pd.merge(all_hours, df, on='hour', how='left').fillna(0)
+
+    fig = px.bar(
+        df,
+        x='hour',
+        y='avg_wind_speed',
+        title=f"Average Wind Speed by Hour on {month}/{day}",
+        labels={'hour': 'Hour of the Day (24-Hour Format)', 'avg_wind_speed': 'Average Wind Speed (Knots)'},
+        color='avg_wind_speed',
+        color_continuous_scale='Blues'
+    )
+    fig.update_layout(
+        xaxis=dict(tickmode='linear', dtick=1),
+        yaxis=dict(title='Average Wind Speed (Knots)'),
+        bargap=0.2
+    )
+
+    return fig
+
+def plot_avg_wind_gust_by_hour(conn, month: int, day: int):
+    """
+    Plots the average wind gust grouped by hour for a specific day.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    month (int): The specified month.
+    day (int): The specified day.
+
+    Returns:
+    plotly.graph_objects.Figure: A bar plot showing the average wind gust by hour.
+    """
+    cursor = conn.cursor()
+
+    query = """
+    SELECT hour, AVG(wind_gust) AS avg_wind_gust
+    FROM weather
+    WHERE month = ? AND day = ? AND wind_gust IS NOT NULL
+    GROUP BY hour
+    ORDER BY hour;
+    """
+    cursor.execute(query, (month, day))
+    result = cursor.fetchall()
+
+    if not result:
+        print("No data available for the specified day.")
+        return
+
+    df = pd.DataFrame(result, columns=['hour', 'avg_wind_gust'])
+    df['hour'] = df['hour'].astype(int)
+
+    all_hours = pd.DataFrame({'hour': range(24)})
+    df = pd.merge(all_hours, df, on='hour', how='left').fillna(0)
+
+    fig = px.bar(
+        df,
+        x='hour',
+        y='avg_wind_gust',
+        title=f"Average Wind Gust by Hour on {month}/{day}",
+        labels={'hour': 'Hour of the Day (24-Hour Format)', 'avg_wind_gust': 'Average Wind Gust (Knots)'},
+        color='avg_wind_gust',
+        color_continuous_scale='Blues'
+    )
+    fig.update_layout(
+        xaxis=dict(tickmode='linear', dtick=1),
+        yaxis=dict(title='Average Wind Gust (Knots)'),
+        bargap=0.2
+    )
+
+    return fig
+
+def plot_avg_precip_by_hour(conn, month: int, day: int):
+    """
+    Plots the average precipitation grouped by hour for a specific day.
+
+    Parameters:
+    conn (sqlite3.Connection): Database connection.
+    month (int): The specified month.
+    day (int): The specified day.
+
+    Returns:
+    plotly.graph_objects.Figure: A bar plot showing the average precipitation by hour.
+    """
+    cursor = conn.cursor()
+
+    query = """
+    SELECT hour, AVG(precip) AS avg_precip
+    FROM weather
+    WHERE month = ? AND day = ? AND precip IS NOT NULL
+    GROUP BY hour
+    ORDER BY hour;
+    """
+    cursor.execute(query, (month, day))
+    result = cursor.fetchall()
+
+    if not result:
+        print("No data available for the specified day.")
+        return
+
+    df = pd.DataFrame(result, columns=['hour', 'avg_precip'])
+    df['hour'] = df['hour'].astype(int)
+
+    all_hours = pd.DataFrame({'hour': range(24)})
+    df = pd.merge(all_hours, df, on='hour', how='left').fillna(0)
+
+    fig = px.bar(
+        df,
+        x='hour',
+        y='avg_precip',
+        title=f"Average Precipitation by Hour on {month}/{day}",
+        labels={'hour': 'Hour of the Day (24-Hour Format)', 'avg_precip': 'Average Precipitation (Inches)'},
+        color='avg_precip',
+        color_continuous_scale='Blues'
+    )
+    fig.update_layout(
+        xaxis=dict(tickmode='linear', dtick=1),
+        yaxis=dict(title='Average Precipitation (Inches)'),
+        bargap=0.2
+    )
+
+    return fig
