@@ -77,20 +77,48 @@ def top_5_carriers(conn, destination_airport: str):
     """
     return read_sql_query(query, conn, params=(destination_airport,))
 
-def top_5_carriers_from_specified_airport(conn, destination_airport: str):
+def top_5_carriers_from_specified_airport(conn, destination_airport: str, month: int = None, day: int = None):
     """
-    Finds the top 5 airlines for planes flying to a given airport code.
+    Finds the top 5 airlines for flights originating from a given airport code.
+    
+    If month and day are provided, it filters the flights to that specific day.
+    Otherwise, it returns the top 5 carriers for all flights from that airport.
+    
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        destination_airport (str): Airport code to filter flights by (as origin).
+        month (int, optional): Month to filter flights (1-12). Defaults to None.
+        day (int, optional): Day to filter flights (1-31). Defaults to None.
+        
+    Returns:
+        pd.DataFrame: DataFrame containing the carrier and the number of flights.
     """
-    query = """
-        SELECT flights.carrier, COUNT(*) as num_flights 
-        FROM flights 
-        WHERE flights.origin = ?
-        GROUP BY flights.carrier
-        ORDER BY num_flights DESC
-        LIMIT 5;
-    """
-    return read_sql_query(query, conn, params=(destination_airport,))
+    if month is not None and day is not None:
+        query = """
+            SELECT airlines.name, COUNT(*) as num_flights 
+            FROM flights 
+            JOIN airlines ON flights.carrier = airlines.carrier
+            WHERE flights.origin = ?
+              AND flights.month = ?
+              AND flights.day = ?
+            GROUP BY airlines.name
+            ORDER BY num_flights DESC
+            LIMIT 5;
+        """
+        params = (destination_airport, month, day)
+    else:
+        query = """
+            SELECT airlines.name, COUNT(*) as num_flights 
+            FROM flights 
+            JOIN airlines ON flights.carrier = airlines.carrier
+            WHERE flights.origin = ?
+            GROUP BY airlines.name
+            ORDER BY num_flights DESC
+            LIMIT 5;
+        """
+        params = (destination_airport,)
 
+    return read_sql_query(query, conn, params=params)
 
 def get_available_destination_airports(conn, origin_airport):
     """
@@ -326,16 +354,31 @@ def get_all_origin_airports(conn):
     airports = [row[0] for row in cursor.fetchall()]
     return sorted(airports)  # Sorted for better usability
 
-def get_distance_vs_arr_delay(conn):
+def get_distance_vs_arr_delay(conn, month=None, day=None):
     """
     Retrieves flight distance and arrival delay from the DB, returning them in a DataFrame.
+    If both month and day are provided, filters the flights to only that specific day.
+    
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        month (int, optional): Month number to filter flights (1-12).
+        day (int, optional): Day number to filter flights (1-31).
+        
+    Returns:
+        pd.DataFrame: DataFrame with columns 'distance' and 'arr_delay'.
     """
     query = """
         SELECT distance, arr_delay
         FROM flights
-        WHERE arr_delay IS NOT NULL;
+        WHERE arr_delay IS NOT NULL
     """
-    return read_sql_query(query, conn)
+    params = []
+    if month is not None and day is not None:
+        query += " AND month = ? AND day = ?"
+        params.extend([month, day])
+    query += ";"
+    
+    return pd.read_sql_query(query, conn, params=tuple(params))
 
 def fetch_airport_coordinates_df(conn):
     """Fetches airport coordinates as a Pandas DataFrame."""
