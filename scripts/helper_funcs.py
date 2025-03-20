@@ -242,8 +242,7 @@ def create_col_with_speed(conn):
         )
     """)
     
-    conn.commit()
-    
+    conn.commit()  
     
 def create_col_local_arrival_time(conn, recalculate=False):
     """
@@ -364,7 +363,35 @@ def avg_dep_delay_day(conn, month: int, day: int):
 
     return avg_dep_delay
 
+def amount_of_delayed_flights_origin(conn, month: int, day: int, origin=None):
+    """
+    Calculates the amount of delayed flights for the chosen origin airport, or no airport, thus total amount of delayed flights.
 
+    Parameters: 
+    df (pandas.DataFrame): DataFrame containing flights with flight direction.
+    month(int): Chosen month.
+    day(int): Chosen day.
+    origin(str, optional): The origin airport code. If None, calculates for all origins.
+
+    Returns:
+    pandas.DataFrame: Updated DataFrame with the amount of delayed flights.
+
+    """
+    cursor = conn.cursor()
+
+    min_delay = 0
+
+    if origin:
+        query = """SELECT COUNT(*) FROM flights WHERE month = ? AND day = ? AND origin = ? AND dep_delay > ?;"""
+        cursor.execute(query, (month, day, origin, min_delay))
+
+    else:
+        query = """SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dep_delay > ?;"""
+        cursor.execute(query, (month, day, min_delay))
+
+    amount_of_delayed_flights_origin = cursor.fetchone()[0]
+
+    return amount_of_delayed_flights_origin
 
 db_path = "data/flights_database.db"
 conn = sqlite3.connect(db_path)
