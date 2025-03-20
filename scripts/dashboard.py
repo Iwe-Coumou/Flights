@@ -169,8 +169,11 @@ if selected_destination == "None":
 
     # Average Departure Delay by Airline
     # Analyzes the average departure delay per airline.
+    if selected_date != None:
+        fig_delay = plot_avg_departure_delay(conn, selected_date.month, selected_date.day)
+    else:
+        fig_delay = plot_avg_departure_delay(conn)
 
-    fig_delay = plot_avg_departure_delay(conn)
     if fig_delay:
         with st.container():
             st.subheader("⏳ Average Departure Delay by Airline")
@@ -183,13 +186,11 @@ if selected_destination == "None":
         # Distance vs. Arrival Delay
         # Examines the correlation between flight distance and arrival delays.
         
-        if "fig_distance_delay" not in st.session_state or "correlation" not in st.session_state:
-            fig_distance_delay, correlation = plot_distance_vs_arr_delay(conn,"histogram")
-            st.session_state.fig_distance_delay = fig_distance_delay
-            st.session_state.correlation = correlation
+        if selected_date != None:
+                fig_distance_delay, correlation = plot_distance_vs_arr_delay(conn,"histogram", selected_date.month, selected_date.day)
         else:
-            fig_distance_delay = st.session_state.fig_distance_delay
-            correlation = st.session_state.correlation
+            fig_distance_delay, correlation = plot_distance_vs_arr_delay(conn,"histogram")
+
 
         if fig_distance_delay:
             with st.container():
@@ -202,17 +203,20 @@ if selected_destination == "None":
         # Top 5 Airlines by Number of Flights   
         # Displays the top 5 airlines flying from the selected airport.
         
-
-        df_top_carriers = top_5_carriers_from_specified_airport(conn, selected_airport)
+        if selected_date != None:
+            df_top_carriers = top_5_carriers_from_specified_airport(conn, selected_airport, selected_date.month, selected_date.day)
+        else:
+            df_top_carriers = top_5_carriers_from_specified_airport(conn, selected_airport)
 
         if not df_top_carriers.empty:
             with st.container():
                 st.subheader(f"🏆 Top 5 Airlines by Number of Flights from {selected_airport}")
 
-                fig_carriers = px.bar(df_top_carriers, x="carrier", y="num_flights",
+                fig_carriers = px.bar(df_top_carriers, x="name", y="num_flights",
                                     title=f"Top 5 Airlines from {selected_airport}",
-                                    labels={"carrier": "Airline", "num_flights": "Flights"},
-                                    color="carrier")
+                                    labels={"name": "Airline", "num_flights": "Flights"},
+                                    color="name")
+                fig_carriers.update_layout(showlegend=False)
                 st.plotly_chart(fig_carriers, use_container_width=True)
 
 
@@ -348,7 +352,10 @@ else:
                     fig_avg_delay_hour = plot_avg_delay_by_hour(conn, selected_date.month, selected_date.day)
                     st.plotly_chart(fig_avg_delay_hour, use_container_width=True)
                 with col2:
-                    st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
+                    if fig_dict[selected_chart]:
+                        st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
+                    else:
+                        st.error(f"No {selected_chart} data for this day")
             
 
         else:

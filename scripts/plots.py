@@ -19,6 +19,33 @@ import numpy as np
 import sqlite3 as sql
 from math import sin, radians
 
+def combine_two_figures_side_by_side(fig1, fig2):
+    """
+    Combine two Plotly figures side by side in a single figure using subplots.
+    """
+    # Create a subplot figure with 1 row, 2 columns, and minimal horizontal spacing
+    combined_fig = make_subplots(rows=1, cols=2, horizontal_spacing=0)
+
+    # Add all traces from fig1 to the first subplot
+    for trace in fig1.data:
+        combined_fig.add_trace(trace, row=1, col=1)
+
+    # Add all traces from fig2 to the second subplot
+    for trace in fig2.data:
+        combined_fig.add_trace(trace, row=1, col=2)
+
+    # Optionally copy over any layout settings from fig1 or fig2 if needed
+    # e.g., combined_fig.layout.annotations = fig1.layout.annotations
+
+    # Remove margins or set them to your preference
+    combined_fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        width=900,   # You can set a custom width/height
+        height=400,
+        showlegend=True  # Or False, depending on your preference
+    )
+
+    return combined_fig
 
 def plot_route_map(conn, origin, destination):
     """
@@ -322,25 +349,32 @@ def plot_airports_with_and_without_flights(conn):
     )
     return fig
 
-def   plot_distance_vs_arr_delay(conn, plot_type="scatter"):
+def plot_distance_vs_arr_delay(conn, plot_type="scatter", month=None, day=None):
     """
-    Creates a plot of flight distance vs. arrival delay, 
-    and calculates the correlation between these two variables.
-        
+    Creates a plot of flight distance vs. arrival delay, and calculates the correlation 
+    between these two variables.
+    
+    If both month and day are provided, the function filters the flights to only that day.
+    
     Parameters:
-    conn (sqlite3.Connection): Active database connection.
-    plot_type (str): Type of plot to generate ("scatter" or "histogram").
+        conn (sqlite3.Connection): Active database connection.
+        plot_type (str): Type of plot to generate ("scatter" or "histogram").
+        month (int, optional): Month number to filter flights.
+        day (int, optional): Day number to filter flights.
         
     Returns:
-    tuple: (figure, correlation)
+        tuple: (figure, correlation)
     """
-    distance_vs_arr_df = get_distance_vs_arr_delay(conn)
+    # Use the updated function to get the data (filtered if month and day are provided)
+    distance_vs_arr_df = get_distance_vs_arr_delay(conn, month, day)
+    
+    # Calculate correlation between distance and arrival delay
     correlation = distance_vs_arr_df["distance"].corr(distance_vs_arr_df["arr_delay"])
-
+    
     if plot_type == "scatter":
         fig = px.scatter(
             distance_vs_arr_df,
-             x="distance",
+            x="distance",
             y="arr_delay",
             title="Flight Distance vs Arrival Delay",
             labels={"distance": "Distance (miles)", "arr_delay": "Arrival Delay (minutes)"},
@@ -356,11 +390,12 @@ def   plot_distance_vs_arr_delay(conn, plot_type="scatter"):
             title="Flight Distance vs Arrival Delay",
             labels={"distance": "Distance (miles)", "arr_delay": "Arrival Delay (minutes)"},
             nbins=50,
-            opacity=0.75
+            opacity=0.75,
+            histfunc="avg"
         )
     else:
         raise ValueError("Invalid plot_type. Choose either 'scatter' or 'histogram'.")
-
+    
     return fig, correlation
 
 def multi_distance_distribution_gen(conn,*args):
@@ -477,13 +512,16 @@ def plot_wind_impact_vs_air_time(conn,impact_threshold=5):
     
     return fig, correlation  
 
-def plot_avg_departure_delay(conn):
+def plot_avg_departure_delay(conn, month=None, day=None):
     """
     Fetches and visualizes the average departure delay per airline.
-
+    If month and day are provided, it filters the flights to only that day.
+    
     Parameters:
         conn (sqlite3.Connection): Database connection object.
-
+        month (int, optional): Month number to filter flights (1-12).
+        day (int, optional): Day number to filter flights (1-31).
+    
     Returns:
         plotly.graph_objects.Figure: A bar plot showing average delays by airline.
         
@@ -493,22 +531,32 @@ def plot_avg_departure_delay(conn):
         
     Example:
         >>> conn = sqlite3.connect('flights.db')
-        >>> fig = plot_avg_departure_delay(conn)
+        >>> fig = plot_avg_departure_delay(conn, month=3, day=15)
         >>> fig.show()
     """
     try:
         cursor = conn.cursor()
 
+        # Base query and parameters list
         query = """
             SELECT airlines.name AS airline_name, 
                    AVG(flights.dep_delay) AS avg_dep_delay 
             FROM flights 
             JOIN airlines ON flights.carrier = airlines.carrier 
-            GROUP BY airlines.name
         """
-        cursor.execute(query)
+        params = []
 
+        # If both month and day are provided, add filtering condition
+        if month is not None and day is not None:
+            query += "WHERE flights.month = ? AND flights.day = ? "
+            params.extend([month, day])
+
+        query += "GROUP BY airlines.name"
+
+        # Execute the query
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
+
         if not rows:
             raise ValueError("No flight delay data found for any airline")
 
@@ -530,7 +578,7 @@ def plot_avg_departure_delay(conn):
         )
 
         return fig
-    
+
     except sql.Error as e:
         raise sql.Error(f"Database error occurred: {str(e)}")
     except Exception as e:
