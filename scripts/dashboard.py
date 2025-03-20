@@ -309,7 +309,7 @@ else:
                                           ["Precipitation", "Visibility", "Wind speed", ], 
                                           index=0, key="weather chart")
             
-            fig_dict = {"Precipitation": plot_avg_departure_delay(conn),
+            fig_dict = {"Precipitation": None,
                         "Visibility": None,
                         "Wind speed": None}
             col1, col2 = st.columns(2)
