@@ -50,6 +50,7 @@ def main():
     # fig.show()
     # print(f"Correlation between wind impact and air time: {correlation:.3f}")
     #create_col_with_speed(conn)
+    
 
     print("aaaaa")
     create_col_local_arrival_time(conn)
