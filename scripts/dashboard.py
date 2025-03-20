@@ -319,7 +319,10 @@ else:
                     fig_avg_delay_hour = plot_avg_delay_by_hour(conn, selected_date.month, selected_date.day)
                     st.plotly_chart(fig_avg_delay_hour, use_container_width=True)
                 with col2:
-                    st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
+                    if fig_dict[selected_chart]:
+                        st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
+                    else:
+                        st.error(f"No {selected_chart} data for this day")
             
 
         else:
