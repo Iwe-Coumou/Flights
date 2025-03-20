@@ -297,12 +297,28 @@ else:
         
         weather_stats = get_weather_stats_for_route(conn, selected_airport, selected_destination)
         if weather_stats["avg_wind_speed"] is not None:
+            
             st.subheader("🌦️ Weather Stats on This Route")
             st.write(f"Average Wind Speed: {weather_stats['avg_wind_speed']:.2f} knots")
             if weather_stats["avg_temp"] is not None:
                 st.write(f"Average Temperature: {weather_stats['avg_temp']:.2f}°C")
             else:
                 st.write("Average Temperature: No data available")
+            
+            selected_chart = st.selectbox("Select weather chart", 
+                                          ["Precipitation", "Visibility", "Wind speed", ], 
+                                          index=0, key="weather chart")
+            
+            fig_dict = {"Precipitation": plot_avg_departure_delay(conn),
+                        "Visibility": None,
+                        "Wind speed": None}
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_avg_delay_hour = plot_avg_delay_by_hour(conn, selected_date.month, selected_date.day)
+                st.plotly_chart(fig_avg_delay_hour, use_container_width=True)
+            with col2:
+                st.plotly_chart(fig_dict[selected_chart], use_container_width=True)
+            
 
         else:
             st.warning("No weather data available for this route.")
