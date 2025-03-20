@@ -19,6 +19,33 @@ import numpy as np
 import sqlite3 as sql
 from math import sin, radians
 
+def combine_two_figures_side_by_side(fig1, fig2):
+    """
+    Combine two Plotly figures side by side in a single figure using subplots.
+    """
+    # Create a subplot figure with 1 row, 2 columns, and minimal horizontal spacing
+    combined_fig = make_subplots(rows=1, cols=2, horizontal_spacing=0)
+
+    # Add all traces from fig1 to the first subplot
+    for trace in fig1.data:
+        combined_fig.add_trace(trace, row=1, col=1)
+
+    # Add all traces from fig2 to the second subplot
+    for trace in fig2.data:
+        combined_fig.add_trace(trace, row=1, col=2)
+
+    # Optionally copy over any layout settings from fig1 or fig2 if needed
+    # e.g., combined_fig.layout.annotations = fig1.layout.annotations
+
+    # Remove margins or set them to your preference
+    combined_fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        width=900,   # You can set a custom width/height
+        height=400,
+        showlegend=True  # Or False, depending on your preference
+    )
+
+    return combined_fig
 
 def plot_route_map(conn, origin, destination):
     """
