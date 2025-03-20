@@ -79,7 +79,7 @@ with st.sidebar:
         selected_date = None
     else:
         available_dates = ["None"] + available_dates  # Add "None" option
-        selected_date = st.selectbox("Here you can see all of the dates that have at least one flight and you can select one for a finer search", available_dates, index=0, key="sidebar_date")
+        selected_date = st.selectbox("Here you can see all of the dates that have at least one flight from the selected departure airport. Select one to see statistics for the airport regarding a specific date", available_dates, index=0, key="sidebar_date")
         if selected_date == "None":
             selected_date = None
         else:
@@ -88,6 +88,8 @@ with st.sidebar:
     df_flights = pd.DataFrame()
 
     if selected_destination != "None":
+        st.toast('route analysis mode', icon='👍')
+        st.info('You are now in route analysis mode. Here you can select a date to see statistics of the route on a specific day otherwise you can see the general statistics about the selected route', icon='👍')
         show_only_non_cancelled = st.checkbox("Show only non-cancelled flights", value=True, key="show_non_cancelled_checkbox")
         selected_flight = None
 
@@ -111,7 +113,7 @@ with st.sidebar:
                 selected_flight = str(selected_flight_row["flight"].values[0])  # Ensure it is a string
             else:
                 selected_flight = None
-                st.success("no flight selected, you are in route analysis mode")
+                st.success("select a specific flight in the selected day and route to see more details about it")
 
     elif selected_destination != "None":
         st.warning("No flights available for this route on the selected date.")
