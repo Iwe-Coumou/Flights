@@ -89,7 +89,7 @@ with st.sidebar:
 
     if selected_destination != "None":
         st.toast('route analysis mode', icon='👍')
-        st.info('You are now in route analysis mode. Here you can select a date to see statistics of the route on a specific day otherwise you can see the general statistics about the selected route', icon='👍')
+        st.info('You are now in route analysis mode. If you select a date you can see statistics of the route on a specific day otherwise you can see the general statistics about the selected route', icon='👍')
         show_only_non_cancelled = st.checkbox("Show only non-cancelled flights", value=True, key="show_non_cancelled_checkbox")
         selected_flight = None
 
