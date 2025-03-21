@@ -48,7 +48,7 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 if "conn" not in st.session_state:
-    db_path = os.path.abspath(r"C:\Users\fabio\vu uni\data engeneering\group project flights\Flights\Data\flights_database.db")
+    db_path = os.path.abspath(r"C:\Users\iweyn\Documents\Uni\Year_2\Data Engineering\Flights\data\flights_database.db")
     st.session_state.conn = sqlite3.connect(db_path, check_same_thread=False)
 
 conn = st.session_state.conn

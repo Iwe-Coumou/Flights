@@ -264,7 +264,6 @@ def plot_destinations_on_day_from_NYC_airport(conn,month: int, day: int, NYC_air
     )
     return fig, missing_airports
 
-
 def plot_airports_with_and_without_flights(conn):
     """
     Generates a single plot with:
@@ -719,7 +718,6 @@ def analyze_weather_effects_plots(conn):
     except Exception as e:
         raise Exception(f"An error occurred while creating the plot: {str(e)}")
 
-  
 def plot_avg_delay_by_hour(conn, month: int, day: int):
     """
     Plots the average departure delay grouped by hour for a specific day.
@@ -971,6 +969,49 @@ def plot_avg_precip_by_hour(conn, month: int, day: int):
         xaxis=dict(tickmode='linear', dtick=1),
         yaxis=dict(title='Average Precipitation (Inches)'),
         bargap=0.2
+    )
+
+    return fig
+
+def plot_wind_direction(direction, wind_speed=1):
+    """
+    Creates a compass visualization for wind direction.
+
+    Parameters:
+    direction (float): Wind direction in degrees.
+    wind_speed (float): Wind speed (optional, to scale the arrow length).
+
+    Returns:
+    plotly.graph_objects.Figure: A polar chart representing wind direction.
+    """
+    # Convert direction to radians
+    angle_rad = np.radians(direction)
+
+    # Define the starting point (center)
+    x_start, y_start = 0, 0  # Start from the center of the graph
+
+    # Define the endpoint based on the direction
+    x_end = np.cos(angle_rad) * wind_speed  # Projection on X
+    y_end = np.sin(angle_rad) * wind_speed  # Projection on Y
+
+    fig = go.Figure()
+
+    # Draw the circular axis
+    fig.add_trace(go.Scatterpolar(
+        r=[0, wind_speed],  # Start from the center
+        theta=[direction, direction],
+        mode="lines",
+        line=dict(color="red", width=3)
+    ))
+
+    fig.update_layout(
+        title="Wind Direction",
+        polar=dict(
+            radialaxis=dict(visible=False, range=[0, wind_speed]),
+            angularaxis=dict(direction="clockwise", tickmode="array", 
+                             tickvals=[0, 90, 180, 270], ticktext=["N", "E", "S", "W"])
+        ),
+        showlegend=False
     )
 
     return fig
