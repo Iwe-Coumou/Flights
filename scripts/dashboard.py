@@ -300,13 +300,13 @@ else:
         with st.expander("Show Flight Details"):
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("Flight data")
+                st.subheader("Flight Data")
                 for key, value in selected_flight_data.items():
                     st.metric(key.replace("_", " ").title(), f"{value} min" if 'delay' in key or 'time' in key else value)
 
             if average_flight_data:
                 with col2:
-                    st.subheader("Average flight data")
+                    st.subheader("Average Route Data")
                     for key, value in average_flight_data.items():
                         st.metric(key.replace("_", " ").title(), f"{round(value, 2)} min" if 'delay' in key or 'time' in key else value)
 
