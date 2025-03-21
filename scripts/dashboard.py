@@ -164,8 +164,35 @@ if selected_destination == "None":
         # This space can be used for extra analysis in the future.
 
         with st.container():
-            st.subheader("✈️ Additional Metric (Future Expansion)")
-            st.write("This space can be used for extra analysis in the future.")
+            st.subheader("✈️ Additional Metric")
+
+            total_flights, flights_on_day, average_flights_per_day = get_flight_data(conn, selected_airport, (selected_date.month, selected_date.day) if selected_date != None else None)
+            total_delayed,total_delayed_on_day,average_delayed_per_day = get_delayed_data(conn, selected_airport, (selected_date.month, selected_date.day) if selected_date != None else None)
+            total_avg_dep_delay, avg_dep_delay_on_day = get_dep_delay_data(conn, selected_airport, (selected_date.month, selected_date.day) if selected_date != None else None)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(label="Total flights" ,
+                        value=f"{total_flights if flights_on_day == None else flights_on_day}", 
+                        delta=f"{int(round(flights_on_day-average_flights_per_day,0))} from average" if flights_on_day != None else "")
+                
+            with col2:
+                st.metric(label="Total delayed flights" ,
+                        value=f"{total_delayed if total_delayed_on_day == None else total_delayed_on_day}", 
+                        delta=f"{int(round(total_delayed_on_day-average_delayed_per_day,0))} from average" if total_delayed_on_day != None else "")
+                
+            with col3:
+                st.metric(label="avg. departure delay",
+                          value=f"{round(total_avg_dep_delay,2) if avg_dep_delay_on_day == None else round(avg_dep_delay_on_day,2)}",
+                          delta=f"{round(avg_dep_delay_on_day-total_avg_dep_delay,2)} from average" if avg_dep_delay_on_day != None else "")
+                
+        
+            col1, col2 = st.columns(2)
+            with col1:
+                pass
+                
+                
+
 
     # ----------------- MIDDLE FULL-WIDTH BLOCK -----------------
 
