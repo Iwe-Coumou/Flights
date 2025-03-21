@@ -563,6 +563,8 @@ def create_col_with_speed(conn):
         )
     """)
     
+    conn.commit()  
+    
     conn.commit()
       
 def create_col_local_arrival_time(conn, recalculate=False):
