@@ -3,32 +3,6 @@ this file contains functions to get data on the number of flight,
 number of delayed flights and avg departure delay into the dashboard
 """
 
-def avg_departure_delay_month(conn, month: int, day: int, origin:None):
-    """
-    Calculates the average departure delay for all flights in the specified months.
-
-    Parameters: 
-    conn (sqlite3.Connection): Database connection.
-    start_month: beginning of the range months.
-    end_month: ending of the range months.
-    origin (str, optional): The airport for which to calculate the average delay. If none, calculates for all airports.
-
-    Returns:
-    float: The average departure delay for the flights at the chosen month and day for (optional) chosen origin.
-    """
-    cursor = conn.cursor()
-
-    if origin:
-        query = """SELECT AVG(dep_delay) FROM flights WHERE origin = ? AND month = ? AND day = ?;"""  
-        cursor.execute(query, (month, day, origin))
-    else:
-        query = """SELECT AVG(dep_delay) FROM flights WHERE month = ? AND day = ?;""" 
-        cursor.execute(query, (month, day))
-    
-    avg_delay = cursor.fetchone()[0]
-
-    return round(avg_delay, 3) if avg_delay is not None else None
-
 def number_flights_origin(conn, origin: str, month: int = None, day: int = None):
     """
     Calculates the number of flights for a specified airport origin,
@@ -124,7 +98,7 @@ def avg_dep_delay_day(conn, month: int = None, day: int = None):
     
     return avg_dep_delay
 
-def amount_of_delayed_flights_origin(conn, origin: str, month: int = None, day: int = None):
+def amount_of_delayed_flights(conn, origin: str, month: int = None, day: int = None):
     """
     Calculates the amount of delayed flights (with dep_delay > 0) for the chosen origin airport,
     optionally filtering by month and day if provided.
@@ -185,6 +159,24 @@ def avg_delayed_flights_per_day(conn, origin: str) -> float:
     return row[0] if row and row[0] is not None else None
 
 def get_flight_data(conn, origin: str, month_and_day: tuple):
+    """
+    Retrieves flight statistics for a specified origin airport.
+    
+    If a (month, day) tuple is provided, it returns statistics for that specific day;
+    otherwise, it returns overall statistics across all days.
+    
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        origin (str): The origin airport code.
+        month_and_day (tuple or None): A tuple (month, day) to filter the flights,
+                                       or None for overall statistics.
+    
+    Returns:
+        tuple: A tuple containing:
+            - total_flights (int): Total number of flights from the origin.
+            - flights_on_day (int or None): Number of flights on the specified day (if applicable).
+            - average_flights_per_day (float or None): Average daily flights from the origin.
+    """
 
     total_flights = number_flights_origin(conn, origin)
     total_flights_on_day = number_flights_origin(conn, origin, month_and_day[0], month_and_day[1]) if month_and_day != None else None
@@ -193,14 +185,51 @@ def get_flight_data(conn, origin: str, month_and_day: tuple):
     return (total_flights, total_flights_on_day, avg_flights_per_day)
 
 def get_dep_delay_data(conn, origin: str, month_and_day: tuple):
+    """
+    Retrieves departure delay statistics for a specified origin airport.
+    
+    If a (month, day) tuple is provided, it returns statistics for that specific day;
+    otherwise, it returns overall statistics across all days.
+    
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        origin (str): The origin airport code.
+        month_and_day (tuple or None): A tuple (month, day) to filter the flights,
+                                       or None for overall statistics.
+    
+    Returns:
+        tuple: A tuple containing:
+            - overall_avg_dep_delay (float): The overall average departure delay from the origin.
+            - avg_dep_delay_on_day (float or None): The average departure delay on the specified day (if applicable).
+    """
+
     total_avg_dep_delay = avg_dep_delay_day(conn)
     avg_dep_delay_on_day = avg_dep_delay_day(conn, month_and_day[0], month_and_day[1]) if month_and_day != None else None
 
     return (total_avg_dep_delay, avg_dep_delay_on_day)
 
 def get_delayed_data(conn, origin: str, month_and_day: tuple):
-    total_delayed = amount_of_delayed_flights_origin(conn, origin)
-    total_delayed_on_day = amount_of_delayed_flights_origin(conn, origin, month_and_day[0], month_and_day[1]) if month_and_day != None else None
+    """
+    Retrieves delayed flight statistics for a specified origin airport.
+    
+    If a (month, day) tuple is provided, it returns statistics for that specific day;
+    otherwise, it returns overall statistics across all days.
+    
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        origin (str): The origin airport code.
+        month_and_day (tuple or None): A tuple (month, day) to filter the flights,
+                                       or None for overall statistics.
+    
+    Returns:
+        tuple: A tuple containing:
+            - total_delayed (int): Total number of delayed flights from the origin.
+            - delayed_on_day (int or None): Number of delayed flights on the specified day (if applicable).
+            - average_delayed_per_day (float or None): Average delayed flights per day from the origin.
+    """
+
+    total_delayed = amount_of_delayed_flights(conn, origin)
+    total_delayed_on_day = amount_of_delayed_flights(conn, origin, month_and_day[0], month_and_day[1]) if month_and_day != None else None
     avg_delayed_per_day = avg_delayed_flights_per_day(conn, origin)
 
     return (total_delayed, total_delayed_on_day, avg_delayed_per_day)
