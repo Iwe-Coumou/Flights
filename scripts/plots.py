@@ -604,10 +604,10 @@ def analyze_weather_effects_plots(conn):
 
         # --- Define Weather Conditions ---
         # Define thresholds (adjust as needed)
-        strong_wind_threshold = 25  # Knots
-        gustiness_threshold = 10  # Difference between wind_gust and wind_speed
-        crosswind_threshold = 15  #Knots
-        max_tailwind_component = 10 #Knots. Most aircraft have a maximum tailwind component for safe takeoff and landing—often around 10 knots for many commercial jets
+        strong_wind_threshold = 25
+        gustiness_threshold = 10
+        crosswind_threshold = 15
+        max_tailwind_component = 10
 
         # Create a function to categorize wind conditions
         def categorize_wind(row):
