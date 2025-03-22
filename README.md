@@ -106,8 +106,4 @@ This will launch a local server and open the dashboard in your default web brows
 
 Contributions to this project are welcome. Feel free to fork the repository and submit pull requests. Contributions can include code improvements, bug fixes, or documentation enhancements.
 
-## License
-
-This project is licensed under the MIT License.
-
 
