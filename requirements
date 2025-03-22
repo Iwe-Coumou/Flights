@@ -4,4 +4,4 @@ numpy
 timezonefinder
 pytz
 datetime
-sqlite3
+streamlit
