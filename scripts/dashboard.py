@@ -174,22 +174,25 @@ if selected_destination == "None":
             with col1:
                 st.metric(label="Total flights" ,
                         value=f"{total_flights if flights_on_day == None else flights_on_day}", 
-                        delta=f"{int(round(flights_on_day-average_flights_per_day,0))} from average" if flights_on_day != None else "")
+                        delta=f"{int(round(flights_on_day-average_flights_per_day,0))} from average" if flights_on_day != None else "",
+                        delta_color="off")
                 
             with col2:
                 st.metric(label="Total delayed flights" ,
                         value=f"{total_delayed if total_delayed_on_day == None else total_delayed_on_day}", 
-                        delta=f"{int(round(total_delayed_on_day-average_delayed_per_day,0))} from average" if total_delayed_on_day != None else "")
+                        delta=f"{int(round(total_delayed_on_day-average_delayed_per_day,0))} from average" if total_delayed_on_day != None else "",
+                        delta_color="inverse")
                 
             with col3:
                 st.metric(label="avg. departure delay",
                           value=f"{round(total_avg_dep_delay,2) if avg_dep_delay_on_day == None else round(avg_dep_delay_on_day,2)}",
-                          delta=f"{round(avg_dep_delay_on_day-total_avg_dep_delay,2)} from average" if avg_dep_delay_on_day != None else "")
+                          delta=f"{round(avg_dep_delay_on_day-total_avg_dep_delay,2)} from average" if avg_dep_delay_on_day != None else "",
+                          delta_color="inverse")
                 
-        
-            col1, col2 = st.columns(2)
-            with col1:
-                pass
+            if selected_date != None:
+                col1, col2 = st.columns(2)
+                with col1:
+                    pass
                 
                 
 
