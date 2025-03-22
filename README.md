@@ -22,11 +22,6 @@ The repository contains the following files:
 - **db_queries.py**  
   Houses various functions for querying the SQLite database. Examples include retrieving flight destinations, obtaining aircraft information, listing top carriers, and fetching available flight dates.
 
-- **distance_calculations.py**  
-  Contains functions for calculating distances between airports using two methods:  
-  - **Euclidean distance:** A simplified 3D approximation.  
-  - **Geodesic distance:** A more accurate calculation over the earth's surface.
-
 - **distance_comparison.py**  
   Compares distances stored in the database (converted from miles to kilometers) with the computed geodesic distances from a CSV file, highlighting discrepancies that exceed a defined error margin.
 
