@@ -1,3 +1,4 @@
+
 # helper_funcs.py
 import sqlite3
 import numpy as np
@@ -441,10 +442,10 @@ def create_flight_direction_mapping_table(conn):
     Creates a new table 'flight_direction_map' in the database that stores each unique
     origin-destination pair and its computed flight direction (bearing).
     """
-    # Step 1: Retrieve distinct origin-dest pairs
+    # Retrieve distinct origin-dest pairs
     unique_pairs_df = pd.read_sql_query("SELECT DISTINCT origin, dest FROM flights;", conn)
     
-    # Step 2: Fetch airport coordinates
+    # Fetch airport coordinates
     airport_df = fetch_airport_coordinates_df(conn)
     
     # Merge to add origin coordinates
@@ -457,7 +458,7 @@ def create_flight_direction_mapping_table(conn):
         airport_df, left_on="dest", right_on="faa", how="left"
     ).rename(columns={"lat": "dest_lat", "lon": "dest_lon"}).drop(columns=["faa"])
     
-    # Step 3: Compute flight direction (bearing) using vectorized NumPy operations
+    # Compute flight direction (bearing) using vectorized NumPy operations
     unique_pairs_df["direction"] = compute_flight_direction_vectorized(
         unique_pairs_df["origin_lat"], unique_pairs_df["origin_lon"],
         unique_pairs_df["dest_lat"], unique_pairs_df["dest_lon"]
@@ -466,7 +467,7 @@ def create_flight_direction_mapping_table(conn):
     # Keep only necessary columns: origin, dest, and direction
     mapping_df = unique_pairs_df[["origin", "dest", "direction"]]
     
-    # Step 4: Create (or replace) the flight_direction_map table in the database.
+    # Create (or replace) the flight_direction_map table in the database.
     mapping_df.to_sql("flight_direction_map", conn, if_exists="replace", index=False)
 
 def compute_wind_impact(flight_direction, wind_direction, wind_speed):
@@ -572,10 +573,8 @@ def create_col_with_speed(conn):
         )
     """)
     
-    conn.commit()  
-    
     conn.commit()
-      
+     
 def create_col_local_arrival_time(conn, recalculate=False):
     """
     Updates the 'local_arrival_time' column in the flights table, 

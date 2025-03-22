@@ -1,4 +1,5 @@
 import sqlite3 as sql
+import pandas as pd
 from constants import *
 from data_cleaning import clean_database
 from helper_funcs import *
