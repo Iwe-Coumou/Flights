@@ -109,21 +109,6 @@ def correct_timezones(conn):
     else:
         print("All timezones were already correct.")
 
-def plot_timezones(conn):
-    """Plots airport timezone hour differences before and after correction."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT faa, lat, lon, tz FROM airports")
-    airports = cursor.fetchall()
-    
-    df = pd.DataFrame(airports, columns=["FAA", "Latitude", "Longitude", "Hour Difference"])
-    df["Hour Difference"] = df["Hour Difference"].astype(str)  # Convert to categorical
-    
-    fig = px.scatter_geo(
-        df, lat="Latitude", lon="Longitude", color="Hour Difference",
-        hover_name="FAA", title="Airport Timezone Hour Differences"
-    )
-    fig.show()
-
 def remove_duplicate_flights(conn):
     """Removes duplicate flights while keeping the earliest record."""
     try:
@@ -538,44 +523,6 @@ def check_and_fix_flight_time_consistency(conn: sqlite3.Connection, fix_delays: 
     else:
         print("\nNo corrections applied (fix_delays=False).")
 
-def count_large_airtime_discrepancies(conn: sqlite3.Connection, threshold=45):
-    """
-    Compares the scheduled flight duration with the stored airtime for each flight and
-    counts how many flights have an absolute difference greater than the given threshold (in minutes).
-    
-    The scheduled duration is computed as:
-      - If sched_arr_time is earlier than sched_dep_time (i.e. overnight flight),
-        then scheduled duration = (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time) + 86400) / 60.
-      - Otherwise, scheduled duration = (strftime('%s', sched_arr_time) - strftime('%s', sched_dep_time)) / 60.
-    
-    Only flights where sched_dep_time, sched_arr_time, and air_time are not NULL are considered.
-    
-    Parameters:
-      conn (sqlite3.Connection): A connection to the SQLite database.
-      threshold (int): The threshold (in minutes) for the absolute difference between
-                       scheduled duration and stored airtime. Defaults to 45 minutes.
-    
-    Prints the count of flights that exceed this threshold.
-    """
-    cursor = conn.cursor()
-    query = f"""
-        SELECT COUNT(*) 
-        FROM flights
-        WHERE sched_dep_time IS NOT NULL 
-          AND sched_arr_time IS NOT NULL
-          AND air_time IS NOT NULL
-          AND ABS(
-              (CASE 
-                  WHEN (strftime('%s', arr_time) - strftime('%s', dep_time)) < 0
-                  THEN (strftime('%s', arr_time) - strftime('%s', dep_time) + 86400) / 60.0
-                  ELSE (strftime('%s', arr_time) - strftime('%s', dep_time)) / 60.0
-               END) - air_time
-          ) > {threshold};
-    """
-    cursor.execute(query)
-    count = cursor.fetchone()[0]
-    print(f"Number of flights where the absolute difference between scheduled duration and airtime exceeds {threshold} minutes: {count}")
-
 def check_and_update_flight_times(conn: sqlite3.Connection):
     """
     High-level function that:
@@ -590,6 +537,74 @@ def check_and_update_flight_times(conn: sqlite3.Connection):
     update_missing_arr_delay_air_time(conn)
     check_and_fix_flight_time_consistency(conn, True)
 
+def create_col_with_speed(conn):
+    c = conn.cursor()
+    
+    # Controlla se la colonna "speed" esiste
+    cols = [x[1] for x in c.execute("PRAGMA table_info(planes)")]
+    if "speed" not in cols:
+        c.execute("ALTER TABLE planes ADD COLUMN speed REAL")
+
+    # Aggiorna la velocità solo per gli aerei con voli validi
+    c.execute("""
+        UPDATE planes
+        SET speed = (
+            SELECT AVG(distance / (air_time / 60.0))
+            FROM flights
+            WHERE flights.tailnum = planes.tailnum
+              AND air_time > 0
+              AND distance > 0
+        )
+    """)
+    
+    conn.commit()
+     
+def create_col_local_arrival_time(conn, recalculate=False):
+    """
+    Updates the 'local_arrival_time' column in the flights table, 
+    converting arrival time to the destination airport's local time.
+
+    Parameters:
+    recalculate (bool): If True, recalculates all local arrival times. 
+                        If False, only calculates where 'local_arrival_time' is NULL.
+    """
+    c = conn.cursor()
+    
+    # Check if the column already exists
+    cols = [x[1] for x in c.execute("PRAGMA table_info(flights)")]
+    if "local_arrival_time" not in cols:
+        c.execute("ALTER TABLE flights ADD COLUMN local_arrival_time TEXT")
+
+    # Determine the condition for updating local arrival time
+    condition = "WHERE arr_time IS NOT NULL"
+    if not recalculate:
+        condition += " AND (local_arrival_time IS NULL OR local_arrival_time = '')"
+
+    # Update local arrival time based on origin and destination timezones
+    c.execute(f"""
+        UPDATE flights
+        SET local_arrival_time = (
+            SELECT strftime(
+                '%Y-%m-%d %H:%M', 
+                datetime(flights.arr_time, 
+                    CASE 
+                        WHEN CAST(a_dest.tz AS INTEGER) != CAST(a_origin.tz AS INTEGER) 
+                        THEN (CAST(a_dest.tz AS INTEGER) - CAST(a_origin.tz AS INTEGER)) || ' hours' 
+                        ELSE '0 hours'  -- Se il fuso è lo stesso, non modificare l'ora
+                    END
+                )
+            )
+            FROM airports a_origin
+            JOIN airports a_dest ON flights.dest = a_dest.faa
+            WHERE flights.origin = a_origin.faa
+            AND flights.rowid = flights.rowid
+        )
+        {condition};
+    """)
+
+    conn.commit()
+    print("Updated 'local_arrival_time' column in flights table.")
+
 def clean_database(conn):
     """Calls all data cleaning functions."""
     print("Starting database cleaning...")
@@ -597,7 +612,6 @@ def clean_database(conn):
     # handle the aiport data
     add_missing_airports(conn)
     delete_unused_airports(conn)
-    #plot_timezones(conn)
     correct_timezones(conn)
 
     # handle the flights data
@@ -607,7 +621,9 @@ def clean_database(conn):
     delete_flights_without_arrival(conn)
     delete_flights_without_arr_delay(conn)
     check_and_update_flight_times(conn)
-    count_large_airtime_discrepancies(conn)
+
+    # create_col_with_speed(conn)
+    # create_col_local_arrival_time(conn)
 
     print("Database cleaning completed.")
 
