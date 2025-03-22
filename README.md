@@ -55,6 +55,8 @@ The repository contains the following files:
 - **flights_full.pdf**  
   A detailed description of the assignment requirements and project steps, providing context and instructions for the project.
 
+- **main.py**
+  This file can be used to experiment with all the functions in this project. If you want to see the output of functions outside of the dashboard or use function that are not used in the dashboard you    can used them in this file.
 ## Setup and Installation
 
 ### Requirements
