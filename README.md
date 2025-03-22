@@ -68,11 +68,10 @@ The project depends on the following libraries:
 - **pytz** – For handling time zone operations.
 - **timezonefinder** – For determining the time zone from latitude and longitude coordinates.
 
-*Note:* The `sqlite3` module is part of Python’s standard library and does not need to be installed separately.
-
 ### Installing the Dependencies
 
 Run this command in your terminal:
+
 ```
 pip install -r requirements.txt
 ```
