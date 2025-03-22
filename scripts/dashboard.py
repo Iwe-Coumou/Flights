@@ -48,7 +48,7 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 if "conn" not in st.session_state:
-    db_path = os.path.abspath(r"C:\Users\fabio\vu uni\data engeneering\group project flights\Flights\Data\flights_database.db")
+    db_path = os.path.abspath(r"C:\Users\iweyn\Documents\Uni\Year_2\Data Engineering\Flights\data\flights_database.db")
     st.session_state.conn = sqlite3.connect(db_path, check_same_thread=False)
 
 conn = st.session_state.conn
@@ -164,8 +164,35 @@ if selected_destination == "None":
         # This space can be used for extra analysis in the future.
 
         with st.container():
-            st.subheader("✈️ Additional Metric (Future Expansion)")
-            st.write("This space can be used for extra analysis in the future.")
+            st.subheader("✈️ Additional Metric")
+
+            total_flights, flights_on_day, average_flights_per_day = get_flight_data(conn, selected_airport, (selected_date.month, selected_date.day) if selected_date != None else None)
+            total_delayed,total_delayed_on_day,average_delayed_per_day = get_delayed_data(conn, selected_airport, (selected_date.month, selected_date.day) if selected_date != None else None)
+            total_avg_dep_delay, avg_dep_delay_on_day = get_dep_delay_data(conn, selected_airport, (selected_date.month, selected_date.day) if selected_date != None else None)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(label="Total flights" ,
+                        value=f"{total_flights if flights_on_day == None else flights_on_day}", 
+                        delta=f"{int(round(flights_on_day-average_flights_per_day,0))} from average" if flights_on_day != None else "")
+                
+            with col2:
+                st.metric(label="Total delayed flights" ,
+                        value=f"{total_delayed if total_delayed_on_day == None else total_delayed_on_day}", 
+                        delta=f"{int(round(total_delayed_on_day-average_delayed_per_day,0))} from average" if total_delayed_on_day != None else "")
+                
+            with col3:
+                st.metric(label="avg. departure delay",
+                          value=f"{round(total_avg_dep_delay,2) if avg_dep_delay_on_day == None else round(avg_dep_delay_on_day,2)}",
+                          delta=f"{round(avg_dep_delay_on_day-total_avg_dep_delay,2)} from average" if avg_dep_delay_on_day != None else "")
+                
+        
+            col1, col2 = st.columns(2)
+            with col1:
+                pass
+                
+                
+
 
     # ----------------- MIDDLE FULL-WIDTH BLOCK -----------------
 
@@ -300,13 +327,13 @@ else:
         with st.expander("Show Flight Details"):
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("Flight data")
+                st.subheader("Flight Data")
                 for key, value in selected_flight_data.items():
                     st.metric(key.replace("_", " ").title(), f"{value} min" if 'delay' in key or 'time' in key else value)
 
             if average_flight_data:
                 with col2:
-                    st.subheader("Average flight data")
+                    st.subheader("Average Route Data")
                     for key, value in average_flight_data.items():
                         st.metric(key.replace("_", " ").title(), f"{round(value, 2)} min" if 'delay' in key or 'time' in key else value)
 
