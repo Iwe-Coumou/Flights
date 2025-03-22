@@ -169,30 +169,39 @@ def get_available_dates(conn, origin, destination=None):
     dates = [row[0] for row in cursor.fetchall()]
     
     return sorted(dates)
-
-def get_top_5_carriers_for_route(conn, origin, destination):
-    
+def get_top_5_carriers_for_route(conn, origin, destination, date=None):
     """
     Fetches the top 5 airlines operating the most flights on a given route.
+    If a date is provided, it filters the results to that specific date.
 
     Parameters:
     conn (sqlite3.Connection): Active database connection.
     origin (str): Origin airport code.
     destination (str): Destination airport code.
+    date (str, optional): Date in 'YYYY-MM-DD' format. Defaults to None.
 
     Returns:
     pandas.DataFrame: DataFrame with carrier and number of flights.
-    """
-    query = """
+        """
+    base_query = """
         SELECT airlines.name, COUNT(*) as num_flights 
         FROM flights
         JOIN airlines ON flights.carrier = airlines.carrier 
         WHERE origin = ? AND dest = ?
+    """
+    params = [origin, destination]
+
+    if date:
+        base_query += " AND substr(sched_dep_time, 1, 10) = ?"
+        params.append(date)
+
+    base_query += """
         GROUP BY airlines.name
         ORDER BY num_flights DESC
         LIMIT 5;
     """
-    return read_sql_query(query, conn, params=(origin, destination))
+
+    return read_sql_query(base_query, conn, params=params)
 
 def get_weather_stats_for_route(conn, origin, destination):
     

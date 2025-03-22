@@ -1015,3 +1015,54 @@ def plot_wind_direction(direction, wind_speed=1):
     )
 
     return fig
+
+import pandas as pd
+import plotly.express as px
+
+def plot_avg_wind_speed_for_route(conn, origin, destination):
+    """
+    Plots the average daily wind speed for a given route (origin → destination)
+    based on the wind conditions at the origin airport at departure times.
+
+    Parameters:
+        conn (sqlite3.Connection): SQLite database connection
+        origin (str): Origin airport code
+        destination (str): Destination airport code
+
+    Returns:
+        plotly.graph_objs._figure.Figure or None: A Plotly figure showing wind trends, or None if no data.
+    """
+    query = """
+        SELECT strftime('%Y-%m', f.sched_dep_time) AS month, AVG(w.wind_speed) AS avg_wind_speed
+        FROM flights f
+        JOIN weather w ON f.origin = w.origin AND f.time_hour = w.time_hour
+        WHERE f.origin = ? AND f.dest = ?
+        GROUP BY strftime('%Y-%m', f.sched_dep_time)
+        ORDER BY strftime('%Y-%m', f.sched_dep_time)
+    """
+    df = pd.read_sql_query(query, conn, params=(origin, destination))
+
+    # Check if there is valid data
+    if df.empty or df['avg_wind_speed'].isnull().all():
+        return None
+
+    # Convert to datetime if not already
+    df['month'] = pd.to_datetime(df['month'])
+
+    # Create the bar graph
+    fig = px.bar(
+        df,
+        x="month",
+        y="avg_wind_speed",
+        title=f"Monthly Avg Wind Speed — {origin} → {destination}",
+        labels={"month": "Month", "avg_wind_speed": "Wind Speed (knots)"}
+    )
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=50, b=50),
+        xaxis=dict(tickformat="%Y-%m")
+    )
+
+    return fig
+
+
+

@@ -26,15 +26,6 @@ st.markdown("""
     <style>
         /* Background color */
         .stApp { background-color: #f5f5f5; }
-
-        /* Block style */
-        .st-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -159,9 +150,8 @@ if selected_destination == "None":
                 if len(missing) > 0:
                     st.warning(f"Missing airports in database: {missing}")
     with col2:
-
-        ## Additional Metric (Future Expansion)    
-        # This space can be used for extra analysis in the future.
+        # Additional Metric
+        # This section displays additional metrics for the selected airport on a given date or averages
 
         with st.container():
             st.subheader("✈️ Additional Metric")
@@ -318,6 +308,11 @@ else:
             safe_write("Wind direction", wind_dir, "°")
             safe_write("Temperature", temp, "°C")
             safe_write("Visibility", vis, " miles")
+        elif not selected_date:
+            fig_avg_wind_route = plot_avg_wind_speed_for_route(conn, selected_airport, selected_destination)
+            if fig_avg_wind_route:
+                st.subheader("📉 Wind Speed Trend on This Route")
+                st.plotly_chart(fig_avg_wind_route, use_container_width=True)
         else:
             st.warning("⚠️ No wind direction data available.")
 
@@ -350,12 +345,47 @@ else:
     else:
         st.subheader(f"🔗 Route Analysis: {selected_airport} → {selected_destination}")
         
-        df_top_carriers = get_top_5_carriers_for_route(conn, selected_airport, selected_destination)
-        if not df_top_carriers.empty:
-            st.subheader("🏆 Top 5 Airlines on This Route")
-            fig_carriers = px.bar(df_top_carriers, x="name", y="num_flights", title=f"Top 5 Airlines for {selected_airport} → {selected_destination}", labels={"name": "Airline", "num_flights": "Flights"}, color="name")
+        df_top_carriers = get_top_5_carriers_for_route(conn, selected_airport, selected_destination, selected_date)
+        num_airlines = len(df_top_carriers)
+
+        if num_airlines == 0:
+            st.warning("No airlines found for this route.")
+        elif num_airlines == 1:
+            airline_name = df_top_carriers.iloc[0]["name"]
+            num_flights = df_top_carriers.iloc[0]["num_flights"]
+            
+            if selected_date:
+                st.info(f"On {selected_date}, only one airline operates this route: {airline_name} with {num_flights} flights.")
+            else:
+                st.info(f"Only one airline operates this route: {airline_name} with {num_flights} total flights.")
+        else:
+            # Define the title based on number of airlines
+            if num_airlines <= 5:
+                title = f"Airlines operating on the route {selected_airport} → {selected_destination}"
+                subtitle = f"✈️ Airlines on This Route"
+            else:
+                title = f"Top 5 Airlines for {selected_airport} → {selected_destination}"
+                subtitle = f"🏆 Top 5 Airlines on This Route by Number of Flights"
+
+            if selected_date:
+                subtitle += f" on {selected_date}"
+                title += f" on {selected_date}"
+
+            st.subheader(subtitle)
+
+            fig_carriers = px.bar(
+                df_top_carriers,
+                x="name",
+                y="num_flights",
+                title=title,
+                labels={"name": "Airline", "num_flights": "Flights"},
+                color="name"
+            )
             fig_carriers.update_layout(showlegend=False)
             st.plotly_chart(fig_carriers, use_container_width=True)
+
+
+
         
         weather_stats = get_weather_stats_for_route(conn, selected_airport, selected_destination)
         if weather_stats["avg_wind_speed"] is not None:
