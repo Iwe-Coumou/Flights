@@ -4,7 +4,8 @@ import streamlit as st
 import sqlite3
 import os
 from plots import *
-from helper_funcs import *
+from db_queries import *
+from flight_stats import get_flight_data, get_delayed_data, get_dep_delay_data, get_average_flight_stats_for_route, get_weather_for_flight
 from data_cleaning import clean_database
 from datetime import datetime, date
 
