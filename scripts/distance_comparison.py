@@ -5,13 +5,25 @@ Module to compare distances retrieved from the database (in miles, converted to 
 with geodesic distances computed from a CSV file.
 """
 
-import sqlite3
+import sqlite3 as sql
 import pandas as pd
 from constants import NYC_AIRPORTS, ERROR_MARGIN_KM, MILES_TO_KM
-from distance_calculations import file_opener, geodesic_distance_calculator
+from geo_utils import geodesic_distance_calculator
+
+def file_opener(path: str) -> pd.DataFrame:
+    """
+    Opens a CSV file and returns a pandas DataFrame.
+
+    Parameters:
+    - path (str): The file path to the CSV.
+
+    Returns:
+    - pd.DataFrame: The loaded DataFrame.
+    """
+    return pd.read_csv(path)
 
 def check_distances_for_code(
-    conn: sqlite3.Connection,
+    conn: sql.Connection,
     csv_df: pd.DataFrame,
     code: str,
     error_margin_km: float = ERROR_MARGIN_KM
@@ -57,7 +69,7 @@ def check_distances_for_code(
     return incorrect_distances
 
 def compare_nyc_airports(
-    conn: sqlite3.Connection,
+    conn: sql.Connection,
     csv_path: str,
     error_margin_km: float = ERROR_MARGIN_KM
 ) -> dict:

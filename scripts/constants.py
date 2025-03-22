@@ -15,4 +15,5 @@ MISSING_AIRPORTS = [
 # Distance-related constants
 ERROR_MARGIN_KM = 2.0
 MILES_TO_KM = 1.60934
+R = 6371  # Earth radius in kilometers
 
