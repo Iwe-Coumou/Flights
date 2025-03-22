@@ -205,31 +205,6 @@ def get_delayed_data(conn, origin: str, month_and_day: tuple):
 
     return (total_delayed, total_delayed_on_day, avg_delayed_per_day)
 
-def amount_of_delayed_flights(conn, start_month, end_month, destination):
-    """
-    Calculates the amount of delayed flights to the chosen destination.
-
-    Parameters: 
-    df (pandas.DataFrame): DataFrame containing flights with flight direction.
-    start_month: beginning of the range months.
-    end_month: ending of the range months.
-    destination: the destination.
-
-    Returns:
-    pandas.DataFrame: Updated DataFrame with the amount of delayed flights.
-
-    """
-    cursor = conn.cursor()
-
-    min_delay = 0
-
-    query = f"SELECT COUNT(*) FROM flights WHERE month BETWEEN ? AND ? AND dest = ? AND dep_delay > ?;"
-    cursor.execute(query, (start_month, end_month, destination, min_delay))
-
-    amount_of_delayed_flights = cursor.fetchone()[0]
-
-    return amount_of_delayed_flights
-
 def get_weather_for_flight(conn, origin, destination, date):
     """
     Retrieves wind speed and direction for a given flight based on its departure time.
