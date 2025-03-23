@@ -49,11 +49,12 @@ def get_connection():
     print("Attempting to open DB at:", db_path)
     print("File exists?", os.path.exists(db_path))
 
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    return conn
+    #conn = sqlite3.connect(db_path, check_same_thread=False)
+    return db_path
 
 if 'conn' not in st.session_state:
-    st.session_state.conn =  sqlite3.connect(r"flights\Data\flights_database.db")
+    st.write(get_connection)
+    st.session_state.conn =  sqlite3.connect(r".\data\flights_database.db")
 
 conn = st.session_state.conn
 # ----------------- SIDEBAR STYLING -----------------
