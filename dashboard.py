@@ -3,6 +3,7 @@
 import streamlit as st
 import sqlite3
 import os
+import sys
 from scripts.plots import *
 from scripts.db_queries import *
 from scripts.flight_stats import get_flight_data, get_delayed_data, get_dep_delay_data, get_average_flight_stats_for_route, get_weather_for_flight, most_popular_destination, most_popular_carrier
@@ -40,7 +41,18 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 def get_connection():
-    db_path = os.path.join("flights", "data", "flights_database.db")
+    # sys.path is a list of directories that Python searches for modules.
+    # Usually, sys.path[0] is the directory of the currently running script,
+    # but this can vary depending on how the program was started.
+    script_dir = sys.path[0]
+    
+    # Construct the path to your database file.
+    # Adjust "flights", "data", and "flights_database.db" as needed
+    db_path = os.path.join(script_dir, "flights", "data", "flights_database.db")
+    
+    st.write("DB path:", db_path)
+    st.write("Exists?", os.path.exists(db_path))
+    
     conn = sqlite3.connect(db_path, check_same_thread=False)
     return conn
 
