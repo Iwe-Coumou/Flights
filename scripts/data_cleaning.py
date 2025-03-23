@@ -622,6 +622,9 @@ def clean_database(conn):
     delete_flights_without_arr_delay(conn)
     check_and_update_flight_times(conn)
 
+    # these are not used in the dashboard and take take a long time to run
+    # so we decided not to use them
+    
     # create_col_with_speed(conn)
     # create_col_local_arrival_time(conn)
 
