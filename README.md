@@ -79,31 +79,50 @@ This command will install all the required libraries listed in the file.
 
 ### Step 1: Database Operations
 
-Before visualizing the data, ensure that the database (`flights_database.db`) is in place. Use the functions in **data_cleaning.py** (and optionally **db_queries.py**) to clean and preprocess the data.
+Make sure all the python libraries are installed using the command under **Installing the Dependencies**.
 
-### Step 2: Data Analysis and Visualization
+### Step 2: Launching the Dashboard
 
-- Use the functions in **distance_calculations.py** and **distance_comparison.py** to analyze distances between airports.
-- Explore flight statistics with **flight_stats.py** and geospatial insights using **geo_utils.py**.
-- Run the visualization functions in **part1.py** and **plots.py** to generate maps and other plots.
-
-### Step 3: Launching the Interactive Dashboard
-
-To start the Streamlit dashboard, run the following command:
+Make sure you are in the `scripts` folder and run the following command:
 
 ```
 streamlit run dashboard.py
 ```
-or 
+if it does not recognize streamlit try this command:
 
 ```
 python -m streamlit run dashboard.py
 ```
-
 This will launch a local server and open the dashboard in your default web browser, where you can interactively explore flight delays, weather impacts, and other metrics.
+
+if it still doesn't work there might be something wrong with your `Streamlit` or `Python` installation
+
+### Step 3: Using the dashboard
+
+- When opening the dashboard you are on the main page with a preselected origin airport, this page shows a map with flights leaving that origin and some statistics.
+  If you scroll down there will be more graphs and information
+- Incase you started the dashboard with a fresh database there is a button in the top left which cleans the database when pressed
+- Now you have two options, choosing a destination airport or a date
+  - If you decide to select a destination airport, you will enter route analysis mode, this will show a map with the specific route and some general statistics and graphs
+    concerning this route. This also allows you to see and select specific flights and their statistics
+  - If you decide to select a date, and not a destination, the dashboard will show the same statistics as when you open the dashboard but the data will be for that specific date
+
+## Notes
+
+There are some assumptioms or decissions made to keep the scope of this assignment aligned, they will be listed here:
+
+- There are 1134 airports in the airports table that do not appear as a destination in the flights table. These airports were deleted
+- Flighst with no recorded departure time are assumed to be cancelled flight, this applies to 10738 flights.
+- Flights with no recorded arrival time were deleted. Theoretically we could try to approximate this using departure times but there were only 715 flights
+  with no arrival time so we decided it was not worth the effort
+- When converting the scheduled and actual departure and arrival times we needed to use some logic to decide if flights were overnight so we could increment the arrival day as needed.
+  For this logic we needed to rely on the sign of the departure delay and arrival delay to check if a plane departed or arrivad early or the next day. Every non cancelled flight has a departure delay
+  but 1081 of the flights had no arrival delay. Since we needed the arrival delay for our logic and there were relatively little flights without it we decided to remove these.
+- Most of the datacleaning time was spent on the flights table since this was quiet a complicated process. Because of this, the weather table did not get our attention for cleaning and we decided it 
+  was not necessary in the scope of this assignment to do this. This decission does mean that weather data will not always be available in the dashboard but if we wanted to clean the weather table it 
+  we would have needed some extra time.
+- We started with 435.352 flights and 1.251 airports, after this cleaning we had a remaining 433.544 flights and 121 airports
 
 ## Contributing
 
 Contributions to this project are welcome. Feel free to fork the repository and submit pull requests. Contributions can include code improvements, bug fixes, or documentation enhancements.
-
-
