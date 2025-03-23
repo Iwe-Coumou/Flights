@@ -8,7 +8,7 @@ Includes:
 - Plot distance vs arrival delay
 - Multi-distance distribution histogram plotting
 """
-
+import plotly
 import plotly.graph_objects as go
 import plotly.express as px
 from db_queries import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
