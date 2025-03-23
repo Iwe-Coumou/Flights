@@ -40,21 +40,13 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 def get_connection():
-    # get path to the current file
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    # go up one level, then into 'data', then 'flights_database.db'
-    db_path = os.path.join(base_dir, "..", "data", "flights_database.db")
-    db_path = os.path.abspath(db_path)  # ensure absolute path
-
-    print("Attempting to open DB at:", db_path)
-    print("File exists?", os.path.exists(db_path))
-
-    #conn = sqlite3.connect(db_path, check_same_thread=False)
-    return db_path
+    db_path = "data/flights_database.db"  # relative to repo root
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    return conn
 
 if 'conn' not in st.session_state:
     st.write(get_connection())
-    st.session_state.conn =  sqlite3.connect(r".\data\flights_database.db")
+    st.session_state.conn =  get_connection()
 
 conn = st.session_state.conn
 # ----------------- SIDEBAR STYLING -----------------
