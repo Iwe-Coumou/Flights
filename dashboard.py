@@ -43,7 +43,7 @@ st.markdown("""
 def get_connection():
 
     
-    db_path = "mount/src/flights/data/flights_database.db"
+    db_path = "data/flights_database.db"
 
     # Connect to the SQLite database
     
