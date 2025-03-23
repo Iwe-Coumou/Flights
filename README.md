@@ -35,7 +35,7 @@ The repository contains the following files:
   - Creating a mapping table of flight directions between airport pairs in the database.
 
 - **part1.py**  
-  Contains functions for exploratory visualizations. Examples include generating maps of all airports (worldwide and within the U.S.) and visualizing flight paths from a home base (defaulting to JFK).
+  This file contains all the functions from part 1, these work on the csv files that only contains part of the flights and airports.
 
 - **plots.py**  
   Offers a collection of plotting functions for various visualizations such as:  
@@ -46,9 +46,6 @@ The repository contains the following files:
 
 - **dashboard.py**  
   A Streamlit-based interactive dashboard that ties together the data queries, visualizations, and flight statistics. The dashboard allows users to explore flight delays, weather impacts, and other key metrics through dynamic filters (by airport, date, etc.).
-
-- **flights_full.pdf**  
-  A detailed description of the assignment requirements and project steps, providing context and instructions for the project.
 
 - **main.py**
   This file can be used to experiment with all the functions in this project. If you want to see the output of functions outside of the dashboard or use function that are not used in the dashboard you    can used them in this file.
@@ -77,7 +74,13 @@ This command will install all the required libraries listed in the file.
 
 ## Running the Project
 
-### Step 1: Database Operations
+There are two options for running this dashboard:
+
+- Go to the [dashboard url](https://dashboard-flights.streamlit.app/) hosted on streamlit cloud
+- Run the dashboard locally by following the steps below, this allows you to run the dashboard locally and experiment with the code and use
+  function that are not on the hosted dashboard.
+
+### Step 1: Dependencies
 
 Make sure all the python libraries are installed using the command under **Installing the Dependencies**.
 
@@ -101,7 +104,7 @@ if it still doesn't work there might be something wrong with your `Streamlit` or
 
 - When opening the dashboard you are on the main page with a preselected origin airport, this page shows a map with flights leaving that origin and some statistics.
   If you scroll down there will be more graphs and information
-- Incase you started the dashboard with a fresh database there is a button in the top left which cleans the database when pressed
+- In case you started the dashboard with a fresh database there is a button in the top left which cleans the database when pressed
 - Now you have two options, choosing a destination airport or a date
   - If you decide to select a destination airport, you will enter route analysis mode, this will show a map with the specific route and some general statistics and graphs
     concerning this route. This also allows you to see and select specific flights and their statistics
@@ -112,7 +115,7 @@ if it still doesn't work there might be something wrong with your `Streamlit` or
 There are some assumptioms or decissions made to keep the scope of this assignment aligned, they will be listed here:
 
 - There are 1134 airports in the airports table that do not appear as a destination in the flights table. These airports were deleted
-- Flighst with no recorded departure time are assumed to be cancelled flight, this applies to 10738 flights.
+- Flighst with no recorded departure time are assumed to be cancelled flight, this applies to 10738 flights, these flights are not deleted but marked 1 if cancelled in a new column.
 - Flights with no recorded arrival time were deleted. Theoretically we could try to approximate this using departure times but there were only 715 flights
   with no arrival time so we decided it was not worth the effort
 - When converting the scheduled and actual departure and arrival times we needed to use some logic to decide if flights were overnight so we could increment the arrival day as needed.
