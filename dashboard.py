@@ -53,7 +53,7 @@ def get_connection():
     return db_path
 
 if 'conn' not in st.session_state:
-    st.write(get_connection)
+    st.write(get_connection())
     st.session_state.conn =  sqlite3.connect(r".\data\flights_database.db")
 
 conn = st.session_state.conn
