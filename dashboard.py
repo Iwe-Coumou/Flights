@@ -41,19 +41,20 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 def get_connection():
-    # sys.path is a list of directories that Python searches for modules.
-    # Usually, sys.path[0] is the directory of the currently running script,
-    # but this can vary depending on how the program was started.
-    script_dir = sys.path[0]
+
     
-    # Construct the path to your database file.
-    # Adjust "flights", "data", and "flights_database.db" as needed
-    db_path = r"iwe-coumou\flights\data\flights_database.db"
+    # Get the directory where dashboard.py is located
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # Construct the path to the database relative to this directory
+    db_path = os.path.join(BASE_DIR, "data", "flights_database.db")
+
+    # Connect to the SQLite database
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     
     st.write("DB path:", db_path)
     st.write("Exists?", os.path.exists(db_path))
     
-    conn = sqlite3.connect(db_path, check_same_thread=False)
     return conn
 
 if 'conn' not in st.session_state:
