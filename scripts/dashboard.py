@@ -39,9 +39,21 @@ st.markdown("""
 # If the connection is not already stored in the session state, it initializes it.
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
-if "conn" not in st.session_state:
-    db_path = os.path.abspath(r"C:\Users\iweyn\Documents\Uni\Year_2\Data Engineering\Flights\data\flights_database.db")
-    st.session_state.conn = sqlite3.connect(db_path, check_same_thread=False)
+def get_connection():
+    # get path to the current file
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    # go up one level, then into 'data', then 'flights_database.db'
+    db_path = os.path.join(base_dir, "..", "data", "flights_database.db")
+    db_path = os.path.abspath(db_path)  # ensure absolute path
+
+    print("Attempting to open DB at:", db_path)
+    print("File exists?", os.path.exists(db_path))
+
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    return conn
+
+if 'conn' not in st.session_state:
+    st.session_state.conn = get_connection()
 
 conn = st.session_state.conn
 # ----------------- SIDEBAR STYLING -----------------
@@ -179,6 +191,8 @@ if selected_destination == "None":
                           value=f"{round(total_avg_dep_delay,2) if avg_dep_delay_on_day == None else round(avg_dep_delay_on_day,2)}",
                           delta=f"{round(avg_dep_delay_on_day-total_avg_dep_delay,2)} from average" if avg_dep_delay_on_day != None else "",
                           delta_color="inverse")
+                
+            st.divider()
 
             faa_code, airport_name, flight_count = most_popular_destination(conn, selected_airport, selected_date.month, selected_date.day) if selected_date != None else most_popular_destination(conn, selected_airport)
             col1, col2 = st.columns([2,1])
@@ -190,6 +204,8 @@ if selected_destination == "None":
                 st.metric(label=f"Number of flights to {faa_code}",
                           value=f"{flight_count}")
                 
+            st.divider()
+
             carrier_code, airline_name, flight_count = most_popular_carrier(conn, selected_airport, selected_date.month, selected_date.day) if selected_date != None else most_popular_carrier(conn, selected_airport)
             col1, col2 = st.columns([2,1])
             with col1:
