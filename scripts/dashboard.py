@@ -5,7 +5,7 @@ import sqlite3
 import os
 from plots import *
 from db_queries import *
-from flight_stats import get_flight_data, get_delayed_data, get_dep_delay_data, get_average_flight_stats_for_route, get_weather_for_flight
+from flight_stats import get_flight_data, get_delayed_data, get_dep_delay_data, get_average_flight_stats_for_route, get_weather_for_flight, most_popular_destination, most_popular_carrier
 from data_cleaning import clean_database
 from datetime import datetime, date
 
@@ -179,11 +179,27 @@ if selected_destination == "None":
                           value=f"{round(total_avg_dep_delay,2) if avg_dep_delay_on_day == None else round(avg_dep_delay_on_day,2)}",
                           delta=f"{round(avg_dep_delay_on_day-total_avg_dep_delay,2)} from average" if avg_dep_delay_on_day != None else "",
                           delta_color="inverse")
+
+            faa_code, airport_name, flight_count = most_popular_destination(conn, selected_airport, selected_date.month, selected_date.day) if selected_date != None else most_popular_destination(conn, selected_airport)
+            col1, col2 = st.columns([2,1])
+            with col1:
+                st.metric(label="Most popular destination",
+                          value=faa_code)
+                st.caption(f"Full name: {airport_name}")
+            with col2:
+                st.metric(label=f"Number of flights to {faa_code}",
+                          value=f"{flight_count}")
                 
-            if selected_date != None:
-                col1, col2 = st.columns(2)
-                with col1:
-                    pass
+            carrier_code, airline_name, flight_count = most_popular_carrier(conn, selected_airport, selected_date.month, selected_date.day) if selected_date != None else most_popular_carrier(conn, selected_airport)
+            col1, col2 = st.columns([2,1])
+            with col1:
+                st.metric(label="Most popular carrier",
+                          value=carrier_code)
+                st.caption(f"Full airline name: {airline_name}")
+            with col2:
+                st.metric(label=f"Number of flights with {carrier_code}",
+                          value=flight_count)
+                    
                 
                 
 
