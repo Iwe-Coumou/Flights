@@ -255,7 +255,7 @@ def delete_flights_without_arr_delay(conn):
         )
         conn.commit()
         rows_deleted = cursor.rowcount
-        print(f"Deleted {rows_deleted} flights with no recorded arr_time.")
+        print(f"Deleted {rows_deleted} flights with no recorded arrival delay.")
     except sqlite3.Error as e:
         print(f"SQLite error: {e}")
 
@@ -630,3 +630,6 @@ def clean_database(conn):
 
     print("Database cleaning completed.")
 
+if __name__ == "__main__":
+    conn = sqlite3.connect("data/flights_database.db")
+    clean_database(conn)
