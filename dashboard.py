@@ -40,7 +40,7 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 def get_connection():
-    db_path = "data/flights_database.db"  # relative to repo root
+    db_path = r"data\flights_database.db"  # relative to repo root
     conn = sqlite3.connect(db_path, check_same_thread=False)
     return conn
 
