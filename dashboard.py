@@ -46,12 +46,11 @@ def get_connection():
     db_path = r"data\flights_database.db"
 
     # Connect to the SQLite database
-    conn = sqlite3.connect(db_path, check_same_thread=False)
     
     st.write("current directory", os.getcwd())
     st.write("DB path:", db_path)
     st.write("Exists?", os.path.exists(db_path))
-    
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     return conn
 
 if 'conn' not in st.session_state:
