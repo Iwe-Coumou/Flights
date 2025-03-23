@@ -41,9 +41,7 @@ st.markdown("""
 # The connection is stored in the session state to avoid reconnecting to the database on each interaction.
 
 def get_connection():
-
-    
-    db_path = "data/flights_database.db"
+    db_path = "Data/flights_database.db"
 
     # Connect to the SQLite database
     
