@@ -48,7 +48,7 @@ def get_connection():
     
     # Construct the path to your database file.
     # Adjust "flights", "data", and "flights_database.db" as needed
-    db_path = os.path.join(script_dir, "flights", "data", "flights_database.db")
+    db_path = os.path.join("flights", "data", "flights_database.db")
     
     st.write("DB path:", db_path)
     st.write("Exists?", os.path.exists(db_path))
