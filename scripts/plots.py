@@ -11,9 +11,9 @@ Includes:
 
 import plotly.graph_objects as go
 import plotly.express as px
-from db_queries import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
-from geo_utils import create_flight_direction_mapping_table, compute_wind_impact
-from constants import NYC_AIRPORTS
+from scripts.db_queries import get_flight_destinations_from_airport_on_day, get_distance_vs_arr_delay
+from scripts.geo_utils import create_flight_direction_mapping_table, compute_wind_impact
+from scripts.constants import NYC_AIRPORTS
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np

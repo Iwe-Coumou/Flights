@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from constants import R
-from db_queries import fetch_airport_coordinates_df
+from scripts.constants import R
+from scripts.db_queries import fetch_airport_coordinates_df
 
 def compute_flight_direction_vectorized(origin_lat, origin_lon, dest_lat, dest_lon):
     """

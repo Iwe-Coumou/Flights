@@ -2,7 +2,7 @@ import sqlite3
 import timezonefinder
 import plotly.express as px
 import pandas as pd
-from constants import MISSING_AIRPORTS
+from scripts.constants import MISSING_AIRPORTS
 import pytz
 from datetime import datetime, timezone
 
