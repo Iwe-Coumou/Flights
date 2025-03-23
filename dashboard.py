@@ -45,7 +45,6 @@ def get_connection():
     return conn
 
 if 'conn' not in st.session_state:
-    st.write(get_connection())
     st.session_state.conn =  get_connection()
 
 conn = st.session_state.conn
