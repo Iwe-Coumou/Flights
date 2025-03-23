@@ -1,4 +1,4 @@
-plotly
+plotly==5.14.1
 plotly-express
 pandas
 numpy
