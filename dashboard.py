@@ -48,7 +48,7 @@ def get_connection():
     
     # Construct the path to your database file.
     # Adjust "flights", "data", and "flights_database.db" as needed
-    db_path = r"data\flights_database.db"
+    db_path = r"d.\ata\flights_database.db"
     
     st.write("DB path:", db_path)
     st.write("Exists?", os.path.exists(db_path))
