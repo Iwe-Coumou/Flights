@@ -306,3 +306,100 @@ def get_average_flight_stats_for_route(conn, origin: str, destination: str) -> d
             "avg_dep_delay": None,
             "avg_arr_delay": None
         }
+
+def most_popular_destination(conn, origin: str, month: int = None, day: int = None) -> tuple:
+    """
+    Retrieves the most popular destination for flights departing from the specified origin,
+    along with the airport's FAA code and number of flights.
+
+    The function counts the number of flights to each destination from the given origin,
+    optionally filtering by month and day. It joins the flights table with the airports table 
+    (which is assumed to have columns "faa" and "name") so it can return the airport name.
+
+    It then returns a tuple containing:
+        - The FAA code of the destination airport
+        - The name of the destination airport
+        - The number of flights going to that destination
+    
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        origin (str): The origin airport code.
+        month (int, optional): Month to filter (1-12). Defaults to None.
+        day (int, optional): Day to filter (1-31). Defaults to None.
+    
+    Returns:
+        tuple: (faa_code, airport_name, flight_count) 
+               or (None, None, 0) if no flights match the criteria.
+    """
+    query = """
+        SELECT a.faa, a.name, COUNT(*) AS flight_count
+        FROM flights f
+        JOIN airports a ON f.dest = a.faa
+        WHERE f.origin = ?
+    """
+    params = [origin]
+
+    if month is not None:
+        query += " AND f.month = ?"
+        params.append(month)
+
+    if day is not None:
+        query += " AND f.day = ?"
+        params.append(day)
+
+    query += " GROUP BY a.faa, a.name ORDER BY flight_count DESC LIMIT 1"
+
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    result = cursor.fetchone()
+
+    if result:
+        faa_code, airport_name, flight_count = result
+        return faa_code, airport_name, flight_count
+    else:
+        return None, None, 0
+    
+def most_popular_carrier(conn, origin: str, month: int = None, day: int = None) -> tuple:
+    """
+    Retrieves the carrier with the most flights from a specified origin,
+    optionally filtered by month and day. Joins the flights table with
+    the airlines table to return both the carrier code and the airline name.
+
+    Parameters:
+        conn (sqlite3.Connection): Active database connection.
+        origin (str): The origin airport code (e.g. "JFK").
+        month (int, optional): Month to filter (1-12). Defaults to None.
+        day (int, optional): Day to filter (1-31). Defaults to None.
+
+    Returns:
+        tuple: (carrier_code, airline_name, flight_count)
+               e.g. ("AA", "American Airlines", 12345)
+               If no flights match, returns (None, None, 0).
+    """
+    query = """
+        SELECT a.carrier, a.name, COUNT(*) AS flight_count
+        FROM flights f
+        JOIN airlines a ON f.carrier = a.carrier
+        WHERE f.origin = ?
+    """
+    params = [origin]
+
+    if month is not None:
+        query += " AND f.month = ?"
+        params.append(month)
+
+    if day is not None:
+        query += " AND f.day = ?"
+        params.append(day)
+
+    query += " GROUP BY a.carrier, a.name ORDER BY flight_count DESC LIMIT 1"
+
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    result = cursor.fetchone()
+
+    if result:
+        carrier_code, airline_name, flight_count = result
+        return carrier_code, airline_name, flight_count
+    else:
+        return None, None, 0
