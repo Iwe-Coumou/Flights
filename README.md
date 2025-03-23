@@ -79,28 +79,36 @@ This command will install all the required libraries listed in the file.
 
 ### Step 1: Database Operations
 
-Before visualizing the data, ensure that the database (`flights_database.db`) is in place. Use the functions in **data_cleaning.py** (and optionally **db_queries.py**) to clean and preprocess the data.
+Make sure all the python libraries are installed using the command under **Installing the Dependencies**.
 
-### Step 2: Data Analysis and Visualization
+### Step 2: Launching the Dashboard
 
-- Use the functions in **distance_calculations.py** and **distance_comparison.py** to analyze distances between airports.
-- Explore flight statistics with **flight_stats.py** and geospatial insights using **geo_utils.py**.
-- Run the visualization functions in **part1.py** and **plots.py** to generate maps and other plots.
-
-### Step 3: Launching the Interactive Dashboard
-
-To start the Streamlit dashboard, run the following command:
+Make sure you are in the `scripts` folder and run the following command:
 
 ```
 streamlit run dashboard.py
 ```
-or 
+if it does not recognize streamlit try this command:
 
 ```
 python -m streamlit run dashboard.py
 ```
-
 This will launch a local server and open the dashboard in your default web browser, where you can interactively explore flight delays, weather impacts, and other metrics.
+
+if it still doesn't work there might be something wrong with your `streamlit` or `python` installation
+
+### Step 3: Using the dashboard
+
+- When opening the dashboard you are on the main page with a preselected origin airport, this page shows a map with flights leaving that origin and some statistics.
+  If you scroll down there will be more graphs and information
+- Now you have two options, choosing a destination airport or a date
+  - If you decide to select a destination airport, you will enter route analysis mode, this will show a map with the specific route and some general statistics and graphs
+    concerning this route. This also allows you to see and select specific flights and their statistics
+  - If you decide to select a date, and not a destination, the dashboard will show the same statistics as when you open the dashboard but the data will be for that specific date
+
+
+
+
 
 ## Contributing
 
