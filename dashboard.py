@@ -53,7 +53,7 @@ def get_connection():
     return conn
 
 if 'conn' not in st.session_state:
-    st.session_state.conn =  sqlite3.connect("data/flights_database.db")
+    st.session_state.conn =  sqlite3.connect("./data/flights_database.db")
 
 conn = st.session_state.conn
 # ----------------- SIDEBAR STYLING -----------------
