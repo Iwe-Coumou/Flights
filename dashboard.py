@@ -43,22 +43,19 @@ st.markdown("""
 def get_connection():
 
     
-    # Get the directory where dashboard.py is located
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-    # Construct the path to the database relative to this directory
-    db_path = os.path.join(BASE_DIR, "data", "flights_database.db")
+    db_path = r"data\flights_database.db"
 
     # Connect to the SQLite database
     conn = sqlite3.connect(db_path, check_same_thread=False)
     
+    st.write("current directory", os.getcwd())
     st.write("DB path:", db_path)
     st.write("Exists?", os.path.exists(db_path))
     
     return conn
 
 if 'conn' not in st.session_state:
-    st.session_state.conn =  sqlite3.connect(".streamlit/flights/main/Data/flights_database.db")
+    st.session_state.conn =  get_connection()
 
 conn = st.session_state.conn
 # ----------------- SIDEBAR STYLING -----------------
